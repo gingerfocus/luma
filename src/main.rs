@@ -6,6 +6,7 @@ use crossterm::{
     execute,
     terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use editable_word::EditableWord;
 use std::{
     cmp::{max, min},
     fs,
@@ -250,62 +251,5 @@ impl Editing {
             Editing::Link => *self = Editing::Title,
             Editing::Title => *self = Editing::Link,
         }
-    }
-}
-
-// TODO: have this take a mutable reference to a string
-// it is garenteed to out live it as it is reference from
-// the main file content slice
-struct EditableWord {
-    word: String,
-    cursor: usize,
-}
-
-// Note this code crashes on non-utf8 characters
-// as it trys to remove a byte from inside a character
-impl EditableWord {
-    fn new(word: String) -> Self {
-        let cursor = word.len();
-        Self { word, cursor }
-    }
-
-    fn add(&mut self, c: char) {
-        if self.cursor < self.word.len() {
-            self.word.insert(self.cursor, c);
-        } else {
-            self.word.push(c);
-        }
-        self.cursor += 1;
-    }
-
-    /// Removes the character that the cursor is over regardless of
-    /// its size in bytes
-    fn del(&mut self) {
-        let slice = self.word.as_str();
-        let bot = slice.floor_char_boundary(self.cursor.saturating_sub(1));
-        let top = slice.ceil_char_boundary(self.cursor);
-
-        let start = &slice[..bot];
-        let end = {
-            if top == slice.len() {
-                ""
-            } else {
-                &slice[top..]
-            }
-        };
-        self.word = format!("{}{}", start, end);
-
-        self.cursor = bot;
-    }
-
-    fn left(&mut self) {
-        self.cursor = self.word.floor_char_boundary(self.cursor.saturating_sub(1));
-    }
-
-    fn right(&mut self) {
-        if self.cursor == self.word.len() {
-            return;
-        }
-        self.cursor = self.word.ceil_char_boundary(self.cursor + 1);
     }
 }
