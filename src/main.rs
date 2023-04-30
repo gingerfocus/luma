@@ -10,15 +10,25 @@ use std::{
     cmp::{max, min},
     fs,
     io::{stdout, Error},
+    process,
     sync::mpsc::{self, Sender},
 };
 
 fn main() -> Result<(), Error> {
+    let arg = std::env::args().nth(1);
+    let file = match arg {
+        Some(f) => f,
+        None => {
+            eprintln!("Please provide a file to open");
+            process::exit(1);
+        }
+    };
+
     let mut stdout = stdout();
     execute!(stdout, EnterAlternateScreen).unwrap();
     crossterm::terminal::enable_raw_mode().unwrap();
 
-    let content = fs::read_to_string("/home/focus/code/lynkd/links.md").unwrap();
+    let content = fs::read_to_string(&file).unwrap();
 
     let mut entries = content
         .lines()
@@ -144,7 +154,7 @@ fn main() -> Result<(), Error> {
         .collect::<Vec<String>>()
         .join("\n");
 
-    fs::write("/home/focus/code/lynkd/links.md", out)
+    fs::write(&file, out)
 }
 
 struct Entry {

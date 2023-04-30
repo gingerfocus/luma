@@ -1,13 +1,13 @@
 # Lynkd
     
-    Dead simple link viewer that interprets and outputs markdown. Much easier to use than say. In it you can veiw are collection of links in a markdown file quickly and rename, delete, open and more them around.
+Dead simple link viewer that interprets and outputs markdown. Much easier to use than say. In it you can veiw are collection of links in a markdown file quickly and rename, delete, open and more them around.
 
 ### For 1.0
 - [X] Handling non-utf8 characters
     - [ ] Add testing to prove it works
     - [ ] Show invisable characters
     - [ ] Place cursor better
-- [ ] Using the file pointed to as input
+- [X] Using the file pointed to as input
 - [ ] Adding
 - [ ] Pasting
 - [ ] Handling bad input
