@@ -10,7 +10,7 @@ use crossterm::{
     cursor
 };
 
-fn main () { 
+fn main () -> Result<(), Error> { 
     let mut stdout = stdout();
     execute!(stdout, EnterAlternateScreen).unwrap();
     crossterm::terminal::enable_raw_mode().unwrap();
@@ -34,7 +34,6 @@ fn main () {
 
     let mut index = 0;
     let mut cur_mode = Mode::Normal;
-    let mut current_rename = String::new();
     let mut run = true;
     while run {
         // get terminal size
@@ -49,16 +48,16 @@ fn main () {
             print!("{}: {}", j+starting, entry.title);
         });
 
-        match cur_mode {
+        match &mut cur_mode {
             Mode::Normal => {
                 let cursor_pos = min(index as u16, 5);
                 execute!(stdout, cursor::MoveTo(0, cursor_pos)).unwrap();
             }
-            Mode::Rename => {
+            Mode::Rename(word) => {
                 execute!(stdout, cursor::MoveTo(0, height as u16)).unwrap();
-                let msg = format!("R: {}", current_rename);
+                let msg = format!("R: {}", word.word);
                 print!("{}", msg);
-                execute!(stdout, cursor::MoveTo(msg.len() as u16, height as u16)).unwrap();
+                execute!(stdout, cursor::MoveTo(word.cursor + 3 as u16, height as u16)).unwrap();
             }
             Mode::Prompt => {
                 let msg = format!("Delete \"{}\"? [y/n]", entries.get(index).unwrap().title);
@@ -72,21 +71,19 @@ fn main () {
         let event = rx.recv().unwrap();
   
         if let Event::Key(kd) = event {
-            match (kd.code, &cur_mode) {
+            match (kd.code, &mut cur_mode) {
                 (Esc, _) => {
                     cur_mode = Mode::Normal;
-                    current_rename = String::new();
                 }
-                (Char(c), Mode::Rename) => { current_rename.push(c) }
-                (Backspace, Mode::Rename) => { current_rename.pop(); }
+                (Char(c), Mode::Rename(word)) => { word.add(c) }
+                (Backspace, Mode::Rename(word)) => { word.del(); }
                 (Char('q'), Mode::Normal) => run = false, 
                 (Char('j'), Mode::Normal) => index += 1,
                 (Char('k'), Mode::Normal) => if index > 0 { index -= 1 },
-                (Enter, Mode::Rename) => {
+                (Enter, Mode::Rename(word)) => {
                     let entry = entries.get_mut(index).unwrap();
-                    entry.title = current_rename.clone();
+                    entry.title = word.word.clone();
                     cur_mode = Mode::Normal;
-                    current_rename = String::new();
                 }
                 (Enter, Mode::Normal) => {
                     let entry = entries.get(index).unwrap();
@@ -94,8 +91,9 @@ fn main () {
                     let _ = std::process::Command::new("xdg-open").arg(link).spawn().unwrap();
                 }
                 (Char('m'), Mode::Normal) => {
-                    cur_mode = Mode::Rename;
-                    current_rename = entries.get(index).unwrap().title.clone();
+                    cur_mode = Mode::Rename {
+                        0: EditableWord::new(entries.get(index).unwrap().title.clone())
+                    };
                 }
                 (Char('d'), Mode::Normal) => cur_mode = Mode::Prompt, 
                 (Char('y'), Mode::Prompt) => {
@@ -108,17 +106,15 @@ fn main () {
         }
     }
 
-    crossterm::terminal::disable_raw_mode().unwrap();
-    execute!(stdout, LeaveAlternateScreen).unwrap();
+    crossterm::terminal::disable_raw_mode()?;
+    execute!(stdout, LeaveAlternateScreen)?;
 
     let out = entries.iter().map(|entry| {
         format!("[{}]({})", entry.title, entry.link)
     }).collect::<Vec<String>>().join("\n");
 
-    fs::write("/home/focus/code/lynkd/links.md", out).unwrap();    
-
+    fs::write("/home/focus/code/lynkd/links.md", out)
 }
-
 
 struct Entry {
     link: String,
@@ -139,6 +135,46 @@ impl Reader {
 
 enum Mode {
     Normal,
-    Rename, // { name: String },
+    Rename(EditableWord),
     Prompt,
 }
+
+// TODO: have this take a mutable reference to a string
+// it is garenteed to out live it as it is reference from
+// the main file content slice
+struct EditableWord {
+    word: String,
+    cursor: usize,
+}
+
+impl EditableWord {
+    fn new(word: String) -> Self {
+        let cursor = word.len();
+        Self {
+            word,
+            cursor,
+        }
+    }
+
+    fn add(&mut self, c: char) {
+        self.word.insert(self.cursor, c);
+    }
+
+    fn del(&mut self) {
+        if self.cursor > 0 {
+            self.word.remove(self.cursor - 1);
+        }
+    }
+
+    fn left(&mut self) {
+        self.cursor.saturating_sub(1);
+    }
+
+    fn right(&mut self) {
+        // this may be off by one
+        if self.cursor < self.word.len() {
+            self.cursor += 1;
+        }
+    }
+}
+
