@@ -125,7 +125,11 @@ fn main() -> Result<(), Error> {
                 (Char(c), Mode::Add(_, link, Editing::Link)) => link.add(c),
                 (Backspace, Mode::Add(_, link, Editing::Link)) => link.del(),
                 (Char('q'), Mode::Normal) => run = false,
-                (Char('j') | Down, Mode::Normal) => index += 1,
+                (Char('j') | Down, Mode::Normal) => {
+                    if index < entries.len() - 1 {
+                        index += 1
+                    }
+                }
                 (Char('k') | Up, Mode::Normal) => index = index.saturating_sub(1),
                 (Char('g'), Mode::Normal) => index = 0,
                 (Char('G'), Mode::Normal) => index = entries.len() - 1,
@@ -152,10 +156,13 @@ fn main() -> Result<(), Error> {
                 (Enter, Mode::Add(title, link, mode)) => match mode {
                     Editing::Title => mode.next(),
                     Editing::Link => {
-                        entries.insert(index, Entry {
-                            title: title.word.clone(),
-                            link: link.word.clone(),
-                        });
+                        entries.insert(
+                            index,
+                            Entry {
+                                title: title.word.clone(),
+                                link: link.word.clone(),
+                            },
+                        );
                         cur_mode = Mode::Normal;
                     }
                 },
@@ -171,14 +178,18 @@ fn main() -> Result<(), Error> {
                 }
                 (Char('n'), Mode::Delete) => cur_mode = Mode::Normal,
                 (Left | Char('h'), Mode::Normal) => {
-                    let entry = entries.remove(index);
-                    entries.insert(index - 1, entry);
-                    index -= 1;
+                    if index > 0 {
+                        let entry = entries.remove(index);
+                        entries.insert(index - 1, entry);
+                        index -= 1;
+                    }
                 }
                 (Right | Char('l'), Mode::Normal) => {
-                    let entry = entries.remove(index);
-                    entries.insert(index + 1, entry);
-                    index += 1;
+                    if index < entries.len() - 1 {
+                        let entry = entries.remove(index);
+                        entries.insert(index + 1, entry);
+                        index += 1;
+                    }
                 }
                 // Various Cursor movment handles
                 (Right, Mode::Rename(word)) => word.right(),
