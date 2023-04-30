@@ -84,11 +84,29 @@ fn main() -> Result<(), Error> {
                 )
                 .unwrap();
             }
-            Mode::Prompt => {
+            Mode::Delete => {
                 let msg = format!("Delete \"{}\"? [y/n]", entries.get(index).unwrap().title);
                 execute!(stdout, cursor::MoveTo(0, height as u16)).unwrap();
                 print!("{}", msg);
                 execute!(stdout, cursor::MoveTo(msg.len() as u16, height as u16)).unwrap()
+            }
+            Mode::Add(title, _, Editing::Title) => {
+                let msg = format!("Title: {}", title.word);
+                execute!(stdout, cursor::MoveTo(0, height as u16)).unwrap();
+                print!("{}", msg);
+                execute!(
+                    stdout,
+                    cursor::MoveTo(title.cursor as u16 + 7, height as u16)
+                )?;
+            }
+            Mode::Add(_, link, Editing::Link) => {
+                let msg = format!("Link: {}", link.word);
+                execute!(stdout, cursor::MoveTo(0, height as u16)).unwrap();
+                print!("{}", msg);
+                execute!(
+                    stdout,
+                    cursor::MoveTo(link.cursor as u16 + 6, height as u16)
+                )?;
             }
         }
 
@@ -102,9 +120,22 @@ fn main() -> Result<(), Error> {
                 }
                 (Char(c), Mode::Rename(word)) => word.add(c),
                 (Backspace, Mode::Rename(word)) => word.del(),
+                (Char(c), Mode::Add(title, _, Editing::Title)) => title.add(c),
+                (Backspace, Mode::Add(title, _, Editing::Title)) => title.del(),
+                (Char(c), Mode::Add(_, link, Editing::Link)) => link.add(c),
+                (Backspace, Mode::Add(_, link, Editing::Link)) => link.del(),
                 (Char('q'), Mode::Normal) => run = false,
                 (Char('j') | Down, Mode::Normal) => index += 1,
                 (Char('k') | Up, Mode::Normal) => index = index.saturating_sub(1),
+                (Char('g'), Mode::Normal) => index = 0,
+                (Char('G'), Mode::Normal) => index = entries.len() - 1,
+                (Char('i'), Mode::Normal) => {
+                    cur_mode = Mode::Add(
+                        EditableWord::new("".to_string()),
+                        EditableWord::new("".to_string()),
+                        Editing::Title,
+                    )
+                }
                 (Enter, Mode::Rename(word)) => {
                     let entry = entries.get_mut(index).unwrap();
                     entry.title = word.word.clone();
@@ -118,16 +149,27 @@ fn main() -> Result<(), Error> {
                         .output()
                         .unwrap();
                 }
+                (Enter, Mode::Add(title, link, mode)) => match mode {
+                    Editing::Title => mode.next(),
+                    Editing::Link => {
+                        entries.insert(index, Entry {
+                            title: title.word.clone(),
+                            link: link.word.clone(),
+                        });
+                        cur_mode = Mode::Normal;
+                    }
+                },
+                (Tab, Mode::Add(_, _, mode)) => mode.next(),
                 (Char('m'), Mode::Normal) => {
                     cur_mode =
                         Mode::Rename(EditableWord::new(entries.get(index).unwrap().title.clone()));
                 }
-                (Char('d'), Mode::Normal) => cur_mode = Mode::Prompt,
-                (Char('y'), Mode::Prompt) => {
+                (Char('d'), Mode::Normal) => cur_mode = Mode::Delete,
+                (Char('y'), Mode::Delete) => {
                     entries.remove(index);
                     cur_mode = Mode::Normal;
                 }
-                (Char('n'), Mode::Prompt) => cur_mode = Mode::Normal,
+                (Char('n'), Mode::Delete) => cur_mode = Mode::Normal,
                 (Left | Char('h'), Mode::Normal) => {
                     let entry = entries.remove(index);
                     entries.insert(index - 1, entry);
@@ -138,8 +180,13 @@ fn main() -> Result<(), Error> {
                     entries.insert(index + 1, entry);
                     index += 1;
                 }
+                // Various Cursor movment handles
                 (Right, Mode::Rename(word)) => word.right(),
                 (Left, Mode::Rename(word)) => word.left(),
+                (Right, Mode::Add(_, link, Editing::Link)) => link.right(),
+                (Left, Mode::Add(_, link, Editing::Link)) => link.left(),
+                (Right, Mode::Add(title, _, Editing::Title)) => title.right(),
+                (Left, Mode::Add(title, _, Editing::Title)) => title.left(),
                 (_, _) => {}
             }
         }
@@ -177,7 +224,22 @@ impl Reader {
 enum Mode {
     Normal,
     Rename(EditableWord),
-    Prompt,
+    Delete,
+    Add(EditableWord, EditableWord, Editing),
+}
+
+enum Editing {
+    Link,
+    Title,
+}
+
+impl Editing {
+    fn next(&mut self) {
+        match self {
+            Editing::Link => *self = Editing::Title,
+            Editing::Title => *self = Editing::Link,
+        }
+    }
 }
 
 // TODO: have this take a mutable reference to a string

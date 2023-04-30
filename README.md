@@ -8,7 +8,7 @@ Dead simple link viewer that interprets and outputs markdown. Much easier to use
     - [ ] Show invisable characters
     - [ ] Place cursor better
 - [X] Using the file pointed to as input
-- [ ] Adding
+- [X] Adding
 - [ ] Pasting
 - [ ] Handling bad input
 
