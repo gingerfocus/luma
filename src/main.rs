@@ -1,3 +1,5 @@
+#![feature(round_char_boundary)]
+
 use crossterm::{
     cursor,
     event::{read, Event, KeyCode::*},
@@ -193,23 +195,34 @@ impl EditableWord {
         self.cursor += 1;
     }
 
+    /// Removes the character that the cursor is over regardless of
+    /// its size in bytes
     fn del(&mut self) {
-        if self.cursor > 0 {
-            self.word.remove(self.cursor - 1);
-        }
-        self.cursor -= 1;
+        let slice = self.word.as_str();
+        let bot = slice.floor_char_boundary(self.cursor.saturating_sub(1));
+        let top = slice.ceil_char_boundary(self.cursor);
+
+        let start = &slice[..bot];
+        let end = {
+            if top == slice.len() {
+                ""
+            } else {
+                &slice[top..]
+            }
+        };
+        self.word = format!("{}{}", start, end);
+
+        self.cursor = bot;
     }
 
     fn left(&mut self) {
-        if self.cursor > 0 {
-            self.cursor -= 1;
-        }
+        self.cursor = self.word.floor_char_boundary(self.cursor.saturating_sub(1));
     }
 
     fn right(&mut self) {
-        // this may be off by one
-        if self.cursor < self.word.len() {
-            self.cursor += 1;
+        if self.cursor == self.word.len() {
+            return;
         }
+        self.cursor = self.word.ceil_char_boundary(self.cursor + 1);
     }
 }
