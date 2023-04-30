@@ -4,7 +4,7 @@ use std::{
     sync::mpsc::{Sender, self}, cmp::{max, min}
 };
 use crossterm::{
-    event::{read, Event, KeyCode::*},
+    event::{read, Event, KeyCode::{*, self}},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, ClearType, Clear},
     cursor
@@ -34,6 +34,7 @@ fn main () -> Result<(), Error> {
 
     let mut index = 0;
     let mut cur_mode = Mode::Normal;
+    let mut rename_offset: u16 = 0;
     let mut run = true;
     while run {
         // get terminal size
@@ -57,7 +58,7 @@ fn main () -> Result<(), Error> {
                 execute!(stdout, cursor::MoveTo(0, height as u16)).unwrap();
                 let msg = format!("R: {}", word.word);
                 print!("{}", msg);
-                execute!(stdout, cursor::MoveTo(word.cursor + 3 as u16, height as u16)).unwrap();
+                execute!(stdout, cursor::MoveTo(word.cursor as u16+ 3, height as u16)).unwrap();
             }
             Mode::Prompt => {
                 let msg = format!("Delete \"{}\"? [y/n]", entries.get(index).unwrap().title);
@@ -101,6 +102,18 @@ fn main () -> Result<(), Error> {
                     cur_mode = Mode::Normal;
                 }
                 (Char('n'), Mode::Prompt) => cur_mode = Mode::Normal,
+                (Left, Mode::Normal) => {
+                    let entry = entries.remove(index);
+                    entries.insert(index-1, entry);
+                    index -= 1;
+                }
+                (Right, Mode::Normal) => {
+                    let entry = entries.remove(index);
+                    entries.insert(index+1, entry);
+                    index += 1;
+                }
+                (Right, Mode::Rename(word)) => word.right(),
+                (Left, Mode::Rename(word)) => word.left(),
                 (_, _) => {}
             }
         }
@@ -147,6 +160,8 @@ struct EditableWord {
     cursor: usize,
 }
 
+// Note this code crashes on non-utf8 characters
+// as it trys to remove a byte from inside a character
 impl EditableWord {
     fn new(word: String) -> Self {
         let cursor = word.len();
@@ -157,17 +172,25 @@ impl EditableWord {
     }
 
     fn add(&mut self, c: char) {
-        self.word.insert(self.cursor, c);
+        if self.cursor < self.word.len() {
+            self.word.insert(self.cursor, c);
+        } else {
+            self.word.push(c);
+        }
+        self.cursor += 1;
     }
 
     fn del(&mut self) {
         if self.cursor > 0 {
             self.word.remove(self.cursor - 1);
         }
+        self.cursor -= 1;
     }
 
     fn left(&mut self) {
-        self.cursor.saturating_sub(1);
+        if self.cursor > 0 {
+            self.cursor -= 1;
+        }
     }
 
     fn right(&mut self) {
