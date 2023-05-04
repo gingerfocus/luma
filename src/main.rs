@@ -1,29 +1,33 @@
-#![feature(round_char_boundary)]
+#![feature(result_option_inspect)]
 
+/// NOTE: this feature unwraps all user input, which means you can never cancel an add
+use anyhow::Result;
 use crossterm::{
     cursor,
     event::{read, Event, KeyCode::*},
     execute,
     terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use editable_word::EditableWord;
+use rustyline::{history::FileHistory, Editor};
+use simplelog::WriteLogger;
 use std::{
     cmp::{max, min},
     fs,
-    io::{stdout, Error},
+    io::stdout,
     process,
-    sync::mpsc::{self, Sender},
 };
 
-fn main() -> Result<(), Error> {
-    let arg = std::env::args().nth(1);
-    let file = match arg {
-        Some(f) => f,
-        None => {
-            eprintln!("Please provide a file to open");
-            process::exit(1);
-        }
-    };
+fn main() -> Result<()> {
+    WriteLogger::init(
+        simplelog::LevelFilter::Info,
+        simplelog::Config::default(),
+        fs::File::create("lynkd.log")?,
+    )?;
+
+    let file = std::env::args().nth(1).unwrap_or_else(|| {
+        eprint!("Please provide a file to open");
+        process::exit(1);
+    });
 
     let mut stdout = stdout();
     execute!(stdout, EnterAlternateScreen).unwrap();
@@ -43,21 +47,22 @@ fn main() -> Result<(), Error> {
         })
         .collect::<Vec<Entry>>();
 
-    let (tx, rx) = mpsc::channel();
+    let builder = rustyline::config::Builder::new();
+    let conf = builder
+        // .completion_type(rustyline::config::CompletionType::List)
+        .edit_mode(rustyline::config::EditMode::Vi)
+        .build();
 
-    let rd = Reader { port: tx };
-
-    std::thread::spawn(move || {
-        rd.read_events().unwrap();
-    });
+    let mut l: Editor<(), FileHistory> = rustyline::Editor::with_config(conf)?;
 
     let mut index = 0;
-    let mut cur_mode = Mode::Normal;
     let mut run = true;
+
     while run {
         execute!(stdout, Clear(ClearType::All)).unwrap();
 
         let (_, height) = term_size::dimensions().unwrap();
+        // map(|(x, y)| (x as u16, y as u16));
         let starting = max(index as i32 - 5, 0) as usize;
 
         entries
@@ -70,83 +75,42 @@ fn main() -> Result<(), Error> {
                 print!("{}: {}", j + starting, entry.title);
             });
 
-        match &mut cur_mode {
-            Mode::Normal => {
-                let cursor_pos = min(index as u16, 5);
-                execute!(stdout, cursor::MoveTo(0, cursor_pos)).unwrap();
-            }
-            Mode::Rename(word) => {
-                execute!(stdout, cursor::MoveTo(0, height as u16)).unwrap();
-                let msg = format!("R: {}", word.word);
-                print!("{}", msg);
-                execute!(
-                    stdout,
-                    cursor::MoveTo(word.cursor as u16 + 3, height as u16)
-                )
-                .unwrap();
-            }
-            Mode::Delete => {
-                let msg = format!("Delete \"{}\"? [y/n]", entries.get(index).unwrap().title);
-                execute!(stdout, cursor::MoveTo(0, height as u16)).unwrap();
-                print!("{}", msg);
-                execute!(stdout, cursor::MoveTo(msg.len() as u16, height as u16)).unwrap()
-            }
-            Mode::Add(title, _, Editing::Title) => {
-                let msg = format!("Title: {}", title.word);
-                execute!(stdout, cursor::MoveTo(0, height as u16)).unwrap();
-                print!("{}", msg);
-                execute!(
-                    stdout,
-                    cursor::MoveTo(title.cursor as u16 + 7, height as u16)
-                )?;
-            }
-            Mode::Add(_, link, Editing::Link) => {
-                let msg = format!("Link: {}", link.word);
-                execute!(stdout, cursor::MoveTo(0, height as u16)).unwrap();
-                print!("{}", msg);
-                execute!(
-                    stdout,
-                    cursor::MoveTo(link.cursor as u16 + 6, height as u16)
-                )?;
-            }
-        }
+        let cursor_pos = min(index as u16, 5);
+        execute!(stdout, cursor::MoveTo(0, cursor_pos)).unwrap();
 
-        // sleep
-        let event = rx.recv().unwrap();
+        // NOTE: this is very hacky and may drop events
+        // however it has not yet so until then i will just chill
+        let event = read()?;
+
+        // FocusGained,
+        // FocusLost,
+        // Key(KeyEvent),
+        // Mouse(MouseEvent),
+        // Paste(String),
+        // Resize(u16, u16),
 
         if let Event::Key(kd) = event {
-            match (kd.code, &mut cur_mode) {
-                (Esc, _) => {
-                    cur_mode = Mode::Normal;
-                }
-                (Char(c), Mode::Rename(word)) => word.add(c),
-                (Backspace, Mode::Rename(word)) => word.del(),
-                (Char(c), Mode::Add(title, _, Editing::Title)) => title.add(c),
-                (Backspace, Mode::Add(title, _, Editing::Title)) => title.del(),
-                (Char(c), Mode::Add(_, link, Editing::Link)) => link.add(c),
-                (Backspace, Mode::Add(_, link, Editing::Link)) => link.del(),
-                (Char('q'), Mode::Normal) => run = false,
-                (Char('j') | Down, Mode::Normal) => {
+            match kd.code {
+                Esc => { /* cur_mode = Mode::Normal; */ }
+                Char('q') => run = false,
+                Char('j') | Down => {
                     if index < entries.len() - 1 {
                         index += 1
                     }
                 }
-                (Char('k') | Up, Mode::Normal) => index = index.saturating_sub(1),
-                (Char('g'), Mode::Normal) => index = 0,
-                (Char('G'), Mode::Normal) => index = entries.len() - 1,
-                (Char('i'), Mode::Normal) => {
-                    cur_mode = Mode::Add(
-                        EditableWord::new("".to_string()),
-                        EditableWord::new("".to_string()),
-                        Editing::Title,
-                    )
+                Char('k') | Up => index = index.saturating_sub(1),
+                Char('g') => index = 0,
+                Char('G') => index = entries.len() - 1,
+                Char('i') => {
+                    execute!(stdout, cursor::MoveTo(0, height as u16))?;
+                    let title = l.readline("Title: ")?;
+
+                    execute!(stdout, cursor::MoveTo(0, height as u16))?;
+                    let url = l.readline("URL: ")?;
+
+                    entries.insert(index, Entry { title, link: url });
                 }
-                (Enter, Mode::Rename(word)) => {
-                    let entry = entries.get_mut(index).unwrap();
-                    entry.title = word.word.clone();
-                    cur_mode = Mode::Normal;
-                }
-                (Enter, Mode::Normal) => {
+                Enter => {
                     let entry = entries.get(index).unwrap();
                     let link = entry.link.clone();
                     _ = std::process::Command::new("xdg-open")
@@ -154,52 +118,38 @@ fn main() -> Result<(), Error> {
                         .output()
                         .unwrap();
                 }
-                (Enter, Mode::Add(title, link, mode)) => match mode {
-                    Editing::Title => mode.next(),
-                    Editing::Link => {
-                        entries.insert(
-                            index,
-                            Entry {
-                                title: title.word.clone(),
-                                link: link.word.clone(),
-                            },
-                        );
-                        cur_mode = Mode::Normal;
-                    }
-                },
-                (Tab, Mode::Add(_, _, mode)) => mode.next(),
-                (Char('m'), Mode::Normal) => {
-                    cur_mode =
-                        Mode::Rename(EditableWord::new(entries.get(index).unwrap().title.clone()));
+                Char('m') => {
+                    execute!(stdout, cursor::MoveTo(0, height as u16))?;
+                    let old = entries.get_mut(index).unwrap();
+
+                    l.readline_with_initial("Rename: ", (old.title.as_str(), ""))
+                        .inspect(|name| {
+                            old.title = name.clone();
+                        })?;
                 }
-                (Char('d'), Mode::Normal) => cur_mode = Mode::Delete,
-                (Char('y'), Mode::Delete) => {
-                    entries.remove(index);
-                    cur_mode = Mode::Normal;
+                Char('d') => {
+                    execute!(stdout, cursor::MoveTo(0, height as u16))?;
+                    let r = l.readline("Delete [y/N]: ");
+                    match r {
+                        Ok(c) if c == "y" => { entries.remove(index); },
+                        _ => {}
+                    };
                 }
-                (Char('n'), Mode::Delete) => cur_mode = Mode::Normal,
-                (Left | Char('h'), Mode::Normal) => {
+                Left | Char('h') => {
                     if index > 0 {
                         let entry = entries.remove(index);
                         entries.insert(index - 1, entry);
                         index -= 1;
                     }
                 }
-                (Right | Char('l'), Mode::Normal) => {
+                Right | Char('l') => {
                     if index < entries.len() - 1 {
                         let entry = entries.remove(index);
                         entries.insert(index + 1, entry);
                         index += 1;
                     }
                 }
-                // Various Cursor movment handles
-                (Right, Mode::Rename(word)) => word.right(),
-                (Left, Mode::Rename(word)) => word.left(),
-                (Right, Mode::Add(_, link, Editing::Link)) => link.right(),
-                (Left, Mode::Add(_, link, Editing::Link)) => link.left(),
-                (Right, Mode::Add(title, _, Editing::Title)) => title.right(),
-                (Left, Mode::Add(title, _, Editing::Title)) => title.left(),
-                (_, _) => {}
+                _ => {}
             }
         }
     }
@@ -213,43 +163,12 @@ fn main() -> Result<(), Error> {
         .collect::<Vec<String>>()
         .join("\n");
 
-    fs::write(&file, out)
+    fs::write(&file, out)?;
+
+    Ok(())
 }
 
 struct Entry {
     link: String,
     title: String,
-}
-
-struct Reader {
-    port: Sender<Event>,
-}
-
-impl Reader {
-    fn read_events(&self) -> Result<(), Error> {
-        loop {
-            self.port.send(read()?).unwrap();
-        }
-    }
-}
-
-enum Mode {
-    Normal,
-    Rename(EditableWord),
-    Delete,
-    Add(EditableWord, EditableWord, Editing),
-}
-
-enum Editing {
-    Link,
-    Title,
-}
-
-impl Editing {
-    fn next(&mut self) {
-        match self {
-            Editing::Link => *self = Editing::Title,
-            Editing::Title => *self = Editing::Link,
-        }
-    }
 }
