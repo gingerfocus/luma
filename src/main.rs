@@ -1,6 +1,7 @@
 #![feature(result_option_inspect)]
 
-/// NOTE: this feature unwraps all user input, which means you can never cancel an add
+// mod render;
+
 use anyhow::Result;
 use crossterm::{
     cursor,
@@ -9,20 +10,31 @@ use crossterm::{
     terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use rustyline::{history::FileHistory, Editor};
-use simplelog::WriteLogger;
 use std::{
     cmp::{max, min},
     fs,
-    io::stdout,
+    io::{
+        stdout,
+        BufRead,
+        BufReader,
+    },
     process,
 };
 
+struct Entry {
+    link: String,
+    title: String,
+    notes: Vec<String>,
+    folded: bool,
+}
+
 fn main() -> Result<()> {
-    WriteLogger::init(
-        simplelog::LevelFilter::Info,
-        simplelog::Config::default(),
-        fs::File::create("lynkd.log")?,
-    )?;
+    // use simplelog::WriteLogger;
+    // WriteLogger::init(
+    //     simplelog::LevelFilter::Info,
+    //     simplelog::Config::default(),
+    //     fs::File::create("lynkd.log")?,
+    // )?;
 
     let file = std::env::args().nth(1).unwrap_or_else(|| {
         eprint!("Please provide a file to open");
@@ -33,19 +45,65 @@ fn main() -> Result<()> {
     execute!(stdout, EnterAlternateScreen).unwrap();
     crossterm::terminal::enable_raw_mode().unwrap();
 
-    let content = fs::read_to_string(&file).unwrap();
+    // let content = fs::read_to_string(&file).unwrap();
 
-    let mut entries = content
-        .lines()
-        .filter(|l| !l.is_empty())
-        .map(|line| {
-            // TODO destructure using a regex
-            let items: Vec<&str> = line.split("](").take(2).collect();
+
+    let mut entries: Vec<Entry> = Vec::new();
+    entries.push(Entry {
+        link: "root".to_string(),
+        title: "test".to_string(),
+        notes: Vec::new(),
+        folded: false,
+    });
+
+
+    let f = fs::File::open(&file)?;
+    let rd = BufReader::new(f);
+    
+    let mut is_first = true;
+
+    for l in rd.lines() {
+        let l = l?;
+        if l.is_empty() {
+            continue;
+        }
+        if l.starts_with('[') && l.ends_with(')') {
+            if is_first {
+                entries.pop();
+            }
+            let items: Vec<&str> = l.split("](").take(2).collect();
             let title = items[0].replacen('[', "", 1);
             let link = items[1].replacen(')', "", 1);
-            Entry { link, title }
-        })
-        .collect::<Vec<Entry>>();
+            entries.push(Entry {
+                link,
+                title,
+                notes: Vec::new(),
+                folded: false,
+            });
+        } else {
+            let last = entries.last_mut().unwrap();
+            last.notes.push(l);
+        }
+        is_first = false;
+    }
+
+    // .fold(Vec::new(), |mut acc, line| {
+    //     if line.starts_with('[') && line.ends_with(')') {
+    //         acc.push(line.to_string());
+    //     } else {
+    //         let last = acc.last_mut().unwrap();
+    //         last.push_str(line);
+    //     }
+    //     acc
+    // })
+    // .filter(|l| l.starts_with('[') && l.ends_with(')'))
+    // .map(|line| {
+    //     // TODO destructure using a regex
+    //     let items: Vec<&str> = line.split("](").take(2).collect();
+    //     let title = items[0].replacen('[', "", 1);
+    //     let link = items[1].replacen(')', "", 1);
+    //     Entry { link, title }
+    // })
 
     let builder = rustyline::config::Builder::new();
     let conf = builder
@@ -62,8 +120,10 @@ fn main() -> Result<()> {
         execute!(stdout, Clear(ClearType::All)).unwrap();
 
         let (_, height) = term_size::dimensions().unwrap();
-        // map(|(x, y)| (x as u16, y as u16));
+
         let starting = max(index as i32 - 5, 0) as usize;
+
+        let mut print = 0;
 
         entries
             .iter()
@@ -71,8 +131,17 @@ fn main() -> Result<()> {
             .take(height - 1)
             .enumerate()
             .for_each(|(j, entry)| {
-                execute!(stdout, cursor::MoveTo(0, j as u16)).unwrap();
+                execute!(stdout, cursor::MoveTo(0, print as u16)).unwrap();
                 print!("{}: {}", j + starting, entry.title);
+                print += 1;
+                if !entry.folded {
+                    for l in entry.notes.iter() {
+                        execute!(stdout, cursor::MoveTo(0, print as u16)).unwrap();
+                        print!("\t{}", l);
+                        print += 1;
+                    }
+                }
+                
             });
 
         let cursor_pos = min(index as u16, 5);
@@ -108,7 +177,12 @@ fn main() -> Result<()> {
                     execute!(stdout, cursor::MoveTo(0, height as u16))?;
                     let url = l.readline("URL: ")?;
 
-                    entries.insert(index, Entry { title, link: url });
+                    entries.insert(index, Entry {
+                        title,
+                        link: url,
+                        notes: Vec::new(), 
+                        folded: true
+                    });
                 }
                 Enter => {
                     let entry = entries.get(index).unwrap();
@@ -131,7 +205,9 @@ fn main() -> Result<()> {
                     execute!(stdout, cursor::MoveTo(0, height as u16))?;
                     let r = l.readline("Delete [y/N]: ");
                     match r {
-                        Ok(c) if c == "y" => { entries.remove(index); },
+                        Ok(c) if c == "y" => {
+                            entries.remove(index);
+                        }
                         _ => {}
                     };
                 }
@@ -159,16 +235,22 @@ fn main() -> Result<()> {
 
     let out = entries
         .iter()
-        .map(|entry| format!("[{}]({})", entry.title, entry.link))
+        .map(|entry| {
+            let link = format!("[{}]({})\n", entry.title, entry.link);
+            link + entry.notes
+                .iter()
+                .map(|l| format!("\t{}", l))
+                .collect::<Vec<String>>()
+                .join("\n").as_str()
+        })
         .collect::<Vec<String>>()
         .join("\n");
 
-    fs::write(&file, out)?;
+    execute!(stdout, Clear(ClearType::All))?;
+
+    let line = l.readline_with_initial("Save: ", (&file, ""))?;
+
+    fs::write(line, out)?;
 
     Ok(())
-}
-
-struct Entry {
-    link: String,
-    title: String,
 }
