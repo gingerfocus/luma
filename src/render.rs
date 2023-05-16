@@ -22,7 +22,17 @@ pub enum Line<'a> {
     Link(&'a Link),
     Note,
 }
-//
+
+impl Line<'_> {
+    pub fn display(&self) -> String {
+        match self {
+            Line::Header(s) => s.header_format(),
+            Line::Link(l) => l.link_format(),
+            Line::Note => { todo!() },
+        }
+    }
+}
+
 // pub enum Updater {
 //     Full,
 //     Main,

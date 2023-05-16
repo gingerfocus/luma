@@ -1,6 +1,10 @@
 mod render;
 mod state;
 
+use crate::{
+    render::Line,
+    state::{MarkdownFile, Section},
+};
 use anyhow::Result;
 use crossterm::{
     cursor,
@@ -11,10 +15,6 @@ use crossterm::{
 use rustyline::{history::FileHistory, Editor};
 use simplelog::WriteLogger;
 use state::Link;
-use crate::{
-    state::{Section, MarkdownFile},
-    render::Line,
-};
 
 use std::{
     cmp::{max, min},
@@ -43,7 +43,7 @@ fn main() -> Result<()> {
     crossterm::terminal::enable_raw_mode().unwrap();
 
     let f = fs::File::open(&file)?;
-    let state = MarkdownFile::from_file(f).unwrap_or_default();
+    let mut state = MarkdownFile::from_file(f);
 
     // create the line reader that is used to get input from the user
     let mut l: Editor<(), FileHistory> = rustyline::Editor::with_config(
@@ -56,6 +56,8 @@ fn main() -> Result<()> {
     let mut index: usize = 0; // the place of the cursor along the screen
     let mut run = true;
 
+    let mut full_lines: Vec<Line> = Vec::new();
+
     while run {
         execute!(stdout, Clear(ClearType::All)).unwrap();
 
@@ -65,17 +67,15 @@ fn main() -> Result<()> {
 
         let mut print = 0;
 
-        let mut active_lines: Vec<Line> = Vec::new();
+        let mut active_lines: Vec<&mut Line> = Vec::new();
 
-        state
-            .sections
+        full_lines
             .iter_mut()
-            // .skip(starting)
-            // .take(height - 1)
-            .enumerate()
-            .for_each(|(num, section)| {
+            .skip(starting)
+            .take(height - 1)
+            .for_each(|line| {
                 execute!(stdout, cursor::MoveTo(0, print as u16)).unwrap();
-                print!("# {}", section.title);
+                print!("{}", line.display());
                 // print!("{}: {}", j + starting, entry.title);
 
                 print += 1;
@@ -89,7 +89,7 @@ fn main() -> Result<()> {
                 //     }
                 // }
 
-                active_lines.push(Line::Header(&mut section));
+                active_lines.push(line);
             });
 
         let cursor_pos = min(index as u16, 5);
@@ -125,26 +125,25 @@ fn main() -> Result<()> {
                     execute!(stdout, cursor::MoveTo(0, height as u16))?;
                     let url = l.readline("URL: ")?;
 
-                    state.current_section(index).links.push(Link {
-                        title,
-                        link: url, 
-                        notes: Vec::new(), 
-                    });
+                    state
+                        .current_section(index)
+                        .links
+                        .push(Link::new(title, url));
                 }
                 Enter => {
-                    if let Some(Line::Link(lnk)) = active_lines.get(index) { 
-                        lnk.open();
+                    if let Some(Line::Link(lnk)) = active_lines.get(index) {
+                        lnk.open()?;
                     }
                 }
                 Char('m') => {
-                   todo!(); 
-                //     let cur_line = active_lines.get_mut(index).unwrap();
-                //     if let Line::Entry(ent) = cur_line {
-                //         execute!(stdout, cursor::MoveTo(0, height as u16))?;
-                //         if let Ok(name) = l.readline_with_initial("Rename: ", (ent.title.as_str(), "")) {
-                //             ent.title = name.clone();
-                //         }
-                //     }
+                    todo!();
+                    //     let cur_line = active_lines.get_mut(index).unwrap();
+                    //     if let Line::Entry(ent) = cur_line {
+                    //         execute!(stdout, cursor::MoveTo(0, height as u16))?;
+                    //         if let Ok(name) = l.readline_with_initial("Rename: ", (ent.title.as_str(), "")) {
+                    //             ent.title = name.clone();
+                    //         }
+                    //     }
                 }
                 Char('f') => {
                     todo!();
@@ -161,30 +160,30 @@ fn main() -> Result<()> {
                 }
                 Char('d') => {
                     todo!();
-                //     execute!(stdout, cursor::MoveTo(0, height as u16))?;
-                //     let r = l.readline("Delete [y/N]: ");
-                //     match r {
-                //         Ok(c) if c == "y" => {
-                //             entries.remove(index);
-                //         }
-                //         _ => {}
-                //     };
+                    //     execute!(stdout, cursor::MoveTo(0, height as u16))?;
+                    //     let r = l.readline("Delete [y/N]: ");
+                    //     match r {
+                    //         Ok(c) if c == "y" => {
+                    //             entries.remove(index);
+                    //         }
+                    //         _ => {}
+                    //     };
                 }
                 Left | Char('h') => {
                     todo!();
-                //     if index > 0 {
-                //         let entry = entries.remove(index);
-                //         entries.insert(index - 1, entry);
-                //         index -= 1;
-                //     }
+                    //     if index > 0 {
+                    //         let entry = entries.remove(index);
+                    //         entries.insert(index - 1, entry);
+                    //         index -= 1;
+                    //     }
                 }
                 Right | Char('l') => {
                     todo!();
-                //     if index < entries.len() - 1 {
-                //         let entry = entries.remove(index);
-                //         entries.insert(index + 1, entry);
-                //         index += 1;
-                //     }
+                    //     if index < entries.len() - 1 {
+                    //         let entry = entries.remove(index);
+                    //         entries.insert(index + 1, entry);
+                    //         index += 1;
+                    //     }
                 }
                 _ => {}
             }
@@ -194,18 +193,10 @@ fn main() -> Result<()> {
     crossterm::terminal::disable_raw_mode()?;
     execute!(stdout, LeaveAlternateScreen)?;
 
-    let out = entries
+    let out = state
+        .sections
         .iter()
-        .map(|entry| {
-            let link = format!("[{}]({})\n", entry.title, entry.link);
-            link + entry
-                .notes
-                .iter()
-                .map(|l| format!("\t{}", l))
-                .collect::<Vec<String>>()
-                .join("\n")
-                .as_str()
-        })
+        .map(|sec| sec.format())
         .collect::<Vec<String>>()
         .join("\n");
 
@@ -217,4 +208,3 @@ fn main() -> Result<()> {
 
     Ok(())
 }
-
