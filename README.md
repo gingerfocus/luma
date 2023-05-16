@@ -2,23 +2,31 @@
     
 Dead simple link viewer that interprets and outputs markdown. Much easier to use than say. In it you can veiw are collection of links in a markdown file quickly and rename, delete, open and more them around.
 
+Note: As a technical limitation, this code expects all markdown files to start with '# ' and will add that if not present
+
 ### For Alpha
 - [X] Handling non-utf8 characters
 - [X] Using the file pointed to as input
 - [X] Adding
 - [X] Pasting
 - [X] Handling bad input
-- [ ] Editing Links
+- [X] Editing Links
+
+### Serialization System
+- [ ] Render any input file
+- [ ] Add headers to badly formatted files
+- [ ] Fold
+    - [ ] Cursor moves correctly
+    - [ ] Recursive Fold
 
 ### For 1.0 
 - [ ] More navigation options
 - [ ] Using $OPENER as oppsed to xdg-open (for handlr open)
     - [ ] Confirming/choosing browser window for opening
     - [ ] Support for links to files
-- [ ] Cursor moves better
 - [ ] Queue prints and cursor moves instead of just printing them
     - [reference](https://docs.rs/crossterm/latest/crossterm/trait.QueueableCommand.html)
-- [ ] Using multi file input with options to concat or keep seperate
+- [ ] Multi file input 
 - [ ] Color
 - [ ] Grab header data from site
 - [ ] Tui

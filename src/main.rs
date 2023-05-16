@@ -1,5 +1,3 @@
-#![feature(result_option_inspect)]
-
 // mod render;
 
 use anyhow::Result;
@@ -13,11 +11,7 @@ use rustyline::{history::FileHistory, Editor};
 use std::{
     cmp::{max, min},
     fs,
-    io::{
-        stdout,
-        BufRead,
-        BufReader,
-    },
+    io::{stdout, BufRead, BufReader},
     process,
 };
 
@@ -47,7 +41,6 @@ fn main() -> Result<()> {
 
     // let content = fs::read_to_string(&file).unwrap();
 
-
     let mut entries: Vec<Entry> = Vec::new();
     entries.push(Entry {
         link: "root".to_string(),
@@ -56,10 +49,9 @@ fn main() -> Result<()> {
         folded: false,
     });
 
-
     let f = fs::File::open(&file)?;
     let rd = BufReader::new(f);
-    
+
     let mut is_first = true;
 
     for l in rd.lines() {
@@ -141,7 +133,6 @@ fn main() -> Result<()> {
                         print += 1;
                     }
                 }
-                
             });
 
         let cursor_pos = min(index as u16, 5);
@@ -177,12 +168,15 @@ fn main() -> Result<()> {
                     execute!(stdout, cursor::MoveTo(0, height as u16))?;
                     let url = l.readline("URL: ")?;
 
-                    entries.insert(index, Entry {
-                        title,
-                        link: url,
-                        notes: Vec::new(), 
-                        folded: true
-                    });
+                    entries.insert(
+                        index,
+                        Entry {
+                            title,
+                            link: url,
+                            notes: Vec::new(),
+                            folded: true,
+                        },
+                    );
                 }
                 Enter => {
                     let entry = entries.get(index).unwrap();
@@ -196,10 +190,18 @@ fn main() -> Result<()> {
                     execute!(stdout, cursor::MoveTo(0, height as u16))?;
                     let old = entries.get_mut(index).unwrap();
 
-                    l.readline_with_initial("Rename: ", (old.title.as_str(), ""))
-                        .inspect(|name| {
-                            old.title = name.clone();
-                        })?;
+                    if let Ok(name) = l.readline_with_initial("Rename: ", (old.title.as_str(), ""))
+                    {
+                        old.title = name.clone();
+                    };
+                }
+                Char('r') => {
+                    execute!(stdout, cursor::MoveTo(0, height as u16))?;
+                    let old = entries.get_mut(index).unwrap();
+
+                    if let Ok(name) = l.readline_with_initial("Rename: ", (old.link.as_str(), "")) {
+                        old.link = name.clone();
+                    }
                 }
                 Char('d') => {
                     execute!(stdout, cursor::MoveTo(0, height as u16))?;
@@ -236,12 +238,19 @@ fn main() -> Result<()> {
     let out = entries
         .iter()
         .map(|entry| {
-            let link = format!("[{}]({})\n", entry.title, entry.link);
-            link + entry.notes
+            let link = format!("[{}]({})", entry.title, entry.link);
+            let notes = entry
+                .notes
                 .iter()
                 .map(|l| format!("\t{}", l))
                 .collect::<Vec<String>>()
-                .join("\n").as_str()
+                .join("\n");
+                
+            if notes.len() > 0 {
+                format!("{}\n{}", link, notes)
+            } else {
+                link
+            }
         })
         .collect::<Vec<String>>()
         .join("\n");
