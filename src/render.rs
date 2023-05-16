@@ -15,20 +15,32 @@
 //     Terminal,
 // };
 
-use crate::state::{Section, Link};
+use std::sync::Mutex;
 
+use crate::state::{Link, Section};
+
+// section is none when it falls within the root
 pub enum Line<'a> {
-    Header(&'a mut Section),
-    Link(&'a Link),
-    Note,
+    Header {
+        display: &'a str,
+        section: Option<Mutex<Section>>,
+    },
+    Link {
+        link: &'a Link,
+        parent_sec: Option<Mutex<Section>>,
+    },
+    Note {
+        display: &'a str,
+        parent_sec: Option<Mutex<Section>>,
+    },
 }
 
 impl Line<'_> {
     pub fn display(&self) -> String {
         match self {
-            Line::Header(s) => s.header_format(),
-            Line::Link(l) => l.link_format(),
-            Line::Note => { todo!() },
+            Line::Header { display: d, .. } => d.to_string(),
+            Line::Link { link: l, .. } => l.format(),
+            Line::Note { display: d, .. } => d.to_string(),
         }
     }
 }
@@ -114,7 +126,7 @@ impl Line<'_> {
 //     * ┌──────────────────────────────┐
 //     * */
 //
-//     fn draw_main(&mut self) -> Result<()> { 
+//     fn draw_main(&mut self) -> Result<()> {
 //         // let desktop = Paragraph::new("this is where the current boot os would go");
 //         // f.render_widget(desktop, chunks[1]);
 //
@@ -234,4 +246,3 @@ impl Line<'_> {
 //         Ok(())
 //     }
 // }
-

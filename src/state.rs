@@ -1,7 +1,9 @@
 use std::{
     fs::File,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader}, sync::Mutex,
 };
+
+use crate::render::Line;
 
 pub struct MarkdownFile {
     pub notes: Vec<String>,
@@ -74,13 +76,27 @@ impl MarkdownFile {
     pub fn current_section(&mut self, index: usize) -> &mut Section {
         &mut self.sections[index]
     }
+
+    pub fn line(&self) -> Vec<Line> {
+        let mut lines = Vec::new();
+        lines.extend(self.notes.iter().map(|l| Line::Note {
+            parent_sec: None, 
+            display: l, 
+        }));
+        lines.extend(self.links.iter().map(|l| Line::Link {
+            parent_sec: None, 
+            link: l,
+        }));
+        lines.extend(self.sections.iter().flat_map(|s| s.lines()));
+        lines
+    }
 }
 
 pub struct Section {
     pub title: String,
     pub notes: Vec<String>,
     pub links: Vec<Link>,
-    pub subsections: Vec<Section>,
+    pub subsections: Vec<Mutex<Section>>,
     pub folded: bool,
     depth: usize,
 }
@@ -88,6 +104,9 @@ pub struct Section {
 impl Section {
     /// Note this implementation will miss things if peoople skip heading levels
     pub fn from_string(s: String, depth: usize) -> Self {
+        if s.is_empty() {
+            return Section::empty();
+        }
         let subsection_title = format!("{}#", "#".repeat(depth));
         let mut lines = s.lines();
         let title = lines.next().unwrap().replacen(&subsection_title, "", 1);
@@ -168,7 +187,7 @@ impl Section {
         let subsections = self
             .subsections
             .iter()
-            .map(|s| s.format())
+            .map(|s| s.lock().unwrap().format())
             .collect::<Vec<String>>()
             .join("\n");
 
@@ -177,6 +196,24 @@ impl Section {
 
     pub fn header_format(&self) -> String {
         format!("{}{}", "#".repeat(self.depth), self.title)
+    }
+
+    pub fn lines(&self, parent: Mutex<Section>) -> Vec<Line> {
+        let mut lines = Vec::new();
+        lines.push(Line::Header { 
+            display: self.header_format().as_str(), 
+            section: Some(parent),
+        });
+        lines.extend(self.notes.iter().map(|l| Line::Note {
+            parent_sec: Some(self), 
+            display: l, 
+        }));
+        lines.extend(self.links.iter().map(|l| Line::Link {
+            parent_sec: Some(self), 
+            link: l,
+        }));
+        lines.extend(self.subsections.iter().flat_map(|s| s.lines(self)));
+        lines
     }
 }
 

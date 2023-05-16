@@ -13,7 +13,6 @@ use crossterm::{
     terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use rustyline::{history::FileHistory, Editor};
-use simplelog::WriteLogger;
 use state::Link;
 
 use std::{
@@ -24,16 +23,7 @@ use std::{
 };
 
 fn main() -> Result<()> {
-    if std::env::var("LYNKD_LOG").is_ok() {
-        WriteLogger::init(
-            simplelog::LevelFilter::Info,
-            simplelog::Config::default(),
-            fs::File::create("lynkd.log")?,
-        )?;
-    }
-
     let file = std::env::args().nth(1).unwrap_or_else(|| {
-        log::error!("Please provide a file to open");
         eprintln!("Please provide a file to open");
         process::exit(1);
     });
@@ -43,7 +33,7 @@ fn main() -> Result<()> {
     crossterm::terminal::enable_raw_mode().unwrap();
 
     let f = fs::File::open(&file)?;
-    let mut state = MarkdownFile::from_file(f);
+    let mut markdown = MarkdownFile::from_file(f);
 
     // create the line reader that is used to get input from the user
     let mut l: Editor<(), FileHistory> = rustyline::Editor::with_config(
@@ -56,7 +46,7 @@ fn main() -> Result<()> {
     let mut index: usize = 0; // the place of the cursor along the screen
     let mut run = true;
 
-    let mut full_lines: Vec<Line> = Vec::new();
+    let mut full_lines: Vec<Line> = markdown.lines();
 
     while run {
         execute!(stdout, Clear(ClearType::All)).unwrap();
@@ -111,13 +101,13 @@ fn main() -> Result<()> {
                 Esc => { /* cur_mode = Mode::Normal; */ }
                 Char('q') => run = false,
                 Char('j') | Down => {
-                    if index < state.sections.len() - 1 {
+                    if index < markdown.sections.len() - 1 {
                         index += 1
                     }
                 }
                 Char('k') | Up => index = index.saturating_sub(1),
                 Char('g') => index = 0,
-                Char('G') => index = state.sections.len() - 1,
+                Char('G') => index = markdown.sections.len() - 1,
                 Char('i') => {
                     execute!(stdout, cursor::MoveTo(0, height as u16))?;
                     let title = l.readline("Title: ")?;
@@ -125,13 +115,13 @@ fn main() -> Result<()> {
                     execute!(stdout, cursor::MoveTo(0, height as u16))?;
                     let url = l.readline("URL: ")?;
 
-                    state
+                    markdown
                         .current_section(index)
                         .links
                         .push(Link::new(title, url));
                 }
                 Enter => {
-                    if let Some(Line::Link(lnk)) = active_lines.get(index) {
+                    if let Some(Line::Link(lnk, _sec)) = active_lines.get(index) {
                         lnk.open()?;
                     }
                 }
@@ -193,7 +183,7 @@ fn main() -> Result<()> {
     crossterm::terminal::disable_raw_mode()?;
     execute!(stdout, LeaveAlternateScreen)?;
 
-    let out = state
+    let out = markdown
         .sections
         .iter()
         .map(|sec| sec.format())
