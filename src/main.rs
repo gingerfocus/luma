@@ -1,6 +1,5 @@
-#![feature(result_option_inspect)]
-
-// mod render;
+mod render;
+mod state;
 
 use anyhow::Result;
 use crossterm::{
@@ -10,34 +9,32 @@ use crossterm::{
     terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use rustyline::{history::FileHistory, Editor};
+use simplelog::WriteLogger;
+use state::Link;
+use crate::{
+    state::{Section, MarkdownFile},
+    render::Line,
+};
+
 use std::{
     cmp::{max, min},
     fs,
-    io::{
-        stdout,
-        BufRead,
-        BufReader,
-    },
+    io::stdout,
     process,
 };
 
-struct Entry {
-    link: String,
-    title: String,
-    notes: Vec<String>,
-    folded: bool,
-}
-
 fn main() -> Result<()> {
-    // use simplelog::WriteLogger;
-    // WriteLogger::init(
-    //     simplelog::LevelFilter::Info,
-    //     simplelog::Config::default(),
-    //     fs::File::create("lynkd.log")?,
-    // )?;
+    if std::env::var("LYNKD_LOG").is_ok() {
+        WriteLogger::init(
+            simplelog::LevelFilter::Info,
+            simplelog::Config::default(),
+            fs::File::create("lynkd.log")?,
+        )?;
+    }
 
     let file = std::env::args().nth(1).unwrap_or_else(|| {
-        eprint!("Please provide a file to open");
+        log::error!("Please provide a file to open");
+        eprintln!("Please provide a file to open");
         process::exit(1);
     });
 
@@ -45,75 +42,18 @@ fn main() -> Result<()> {
     execute!(stdout, EnterAlternateScreen).unwrap();
     crossterm::terminal::enable_raw_mode().unwrap();
 
-    // let content = fs::read_to_string(&file).unwrap();
-
-
-    let mut entries: Vec<Entry> = Vec::new();
-    entries.push(Entry {
-        link: "root".to_string(),
-        title: "test".to_string(),
-        notes: Vec::new(),
-        folded: false,
-    });
-
-
     let f = fs::File::open(&file)?;
-    let rd = BufReader::new(f);
-    
-    let mut is_first = true;
+    let state = MarkdownFile::from_file(f).unwrap_or_default();
 
-    for l in rd.lines() {
-        let l = l?;
-        if l.is_empty() {
-            continue;
-        }
-        if l.starts_with('[') && l.ends_with(')') {
-            if is_first {
-                entries.pop();
-            }
-            let items: Vec<&str> = l.split("](").take(2).collect();
-            let title = items[0].replacen('[', "", 1);
-            let link = items[1].replacen(')', "", 1);
-            entries.push(Entry {
-                link,
-                title,
-                notes: Vec::new(),
-                folded: false,
-            });
-        } else {
-            let last = entries.last_mut().unwrap();
-            last.notes.push(l);
-        }
-        is_first = false;
-    }
+    // create the line reader that is used to get input from the user
+    let mut l: Editor<(), FileHistory> = rustyline::Editor::with_config(
+        rustyline::config::Builder::new()
+            .completion_type(rustyline::config::CompletionType::List)
+            .edit_mode(rustyline::config::EditMode::Vi)
+            .build(),
+    )?;
 
-    // .fold(Vec::new(), |mut acc, line| {
-    //     if line.starts_with('[') && line.ends_with(')') {
-    //         acc.push(line.to_string());
-    //     } else {
-    //         let last = acc.last_mut().unwrap();
-    //         last.push_str(line);
-    //     }
-    //     acc
-    // })
-    // .filter(|l| l.starts_with('[') && l.ends_with(')'))
-    // .map(|line| {
-    //     // TODO destructure using a regex
-    //     let items: Vec<&str> = line.split("](").take(2).collect();
-    //     let title = items[0].replacen('[', "", 1);
-    //     let link = items[1].replacen(')', "", 1);
-    //     Entry { link, title }
-    // })
-
-    let builder = rustyline::config::Builder::new();
-    let conf = builder
-        // .completion_type(rustyline::config::CompletionType::List)
-        .edit_mode(rustyline::config::EditMode::Vi)
-        .build();
-
-    let mut l: Editor<(), FileHistory> = rustyline::Editor::with_config(conf)?;
-
-    let mut index = 0;
+    let mut index: usize = 0; // the place of the cursor along the screen
     let mut run = true;
 
     while run {
@@ -125,23 +65,31 @@ fn main() -> Result<()> {
 
         let mut print = 0;
 
-        entries
-            .iter()
-            .skip(starting)
-            .take(height - 1)
+        let mut active_lines: Vec<Line> = Vec::new();
+
+        state
+            .sections
+            .iter_mut()
+            // .skip(starting)
+            // .take(height - 1)
             .enumerate()
-            .for_each(|(j, entry)| {
+            .for_each(|(num, section)| {
                 execute!(stdout, cursor::MoveTo(0, print as u16)).unwrap();
-                print!("{}: {}", j + starting, entry.title);
+                print!("# {}", section.title);
+                // print!("{}: {}", j + starting, entry.title);
+
                 print += 1;
-                if !entry.folded {
-                    for l in entry.notes.iter() {
-                        execute!(stdout, cursor::MoveTo(0, print as u16)).unwrap();
-                        print!("\t{}", l);
-                        print += 1;
-                    }
-                }
-                
+
+                // if !entry.folded {
+                //     for l in entry.notes.iter() {
+                //         execute!(stdout, cursor::MoveTo(0, print as u16)).unwrap();
+                //         print!("\t{}", l);
+                //         active_lines.push(Line::Note);
+                //         print += 1;
+                //     }
+                // }
+
+                active_lines.push(Line::Header(&mut section));
             });
 
         let cursor_pos = min(index as u16, 5);
@@ -163,13 +111,13 @@ fn main() -> Result<()> {
                 Esc => { /* cur_mode = Mode::Normal; */ }
                 Char('q') => run = false,
                 Char('j') | Down => {
-                    if index < entries.len() - 1 {
+                    if index < state.sections.len() - 1 {
                         index += 1
                     }
                 }
                 Char('k') | Up => index = index.saturating_sub(1),
                 Char('g') => index = 0,
-                Char('G') => index = entries.len() - 1,
+                Char('G') => index = state.sections.len() - 1,
                 Char('i') => {
                     execute!(stdout, cursor::MoveTo(0, height as u16))?;
                     let title = l.readline("Title: ")?;
@@ -177,53 +125,66 @@ fn main() -> Result<()> {
                     execute!(stdout, cursor::MoveTo(0, height as u16))?;
                     let url = l.readline("URL: ")?;
 
-                    entries.insert(index, Entry {
+                    state.current_section(index).links.push(Link {
                         title,
-                        link: url,
+                        link: url, 
                         notes: Vec::new(), 
-                        folded: true
                     });
                 }
                 Enter => {
-                    let entry = entries.get(index).unwrap();
-                    let link = entry.link.clone();
-                    _ = std::process::Command::new("xdg-open")
-                        .arg(link)
-                        .output()
-                        .unwrap();
+                    if let Some(Line::Link(lnk)) = active_lines.get(index) { 
+                        lnk.open();
+                    }
                 }
                 Char('m') => {
-                    execute!(stdout, cursor::MoveTo(0, height as u16))?;
-                    let old = entries.get_mut(index).unwrap();
-
-                    l.readline_with_initial("Rename: ", (old.title.as_str(), ""))
-                        .inspect(|name| {
-                            old.title = name.clone();
-                        })?;
+                   todo!(); 
+                //     let cur_line = active_lines.get_mut(index).unwrap();
+                //     if let Line::Entry(ent) = cur_line {
+                //         execute!(stdout, cursor::MoveTo(0, height as u16))?;
+                //         if let Ok(name) = l.readline_with_initial("Rename: ", (ent.title.as_str(), "")) {
+                //             ent.title = name.clone();
+                //         }
+                //     }
+                }
+                Char('f') => {
+                    todo!();
+                    // let old = entries.get_mut(index).unwrap();
+                    // old.folded = !old.folded;
+                }
+                Char('n') => {
+                    todo!();
+                    // execute!(stdout, cursor::MoveTo(0, height as u16))?;
+                    // let old = entries.get_mut(index).unwrap();
+                    //
+                    // let note = l.readline("Note: ")?;
+                    // old.notes.push(note);
                 }
                 Char('d') => {
-                    execute!(stdout, cursor::MoveTo(0, height as u16))?;
-                    let r = l.readline("Delete [y/N]: ");
-                    match r {
-                        Ok(c) if c == "y" => {
-                            entries.remove(index);
-                        }
-                        _ => {}
-                    };
+                    todo!();
+                //     execute!(stdout, cursor::MoveTo(0, height as u16))?;
+                //     let r = l.readline("Delete [y/N]: ");
+                //     match r {
+                //         Ok(c) if c == "y" => {
+                //             entries.remove(index);
+                //         }
+                //         _ => {}
+                //     };
                 }
                 Left | Char('h') => {
-                    if index > 0 {
-                        let entry = entries.remove(index);
-                        entries.insert(index - 1, entry);
-                        index -= 1;
-                    }
+                    todo!();
+                //     if index > 0 {
+                //         let entry = entries.remove(index);
+                //         entries.insert(index - 1, entry);
+                //         index -= 1;
+                //     }
                 }
                 Right | Char('l') => {
-                    if index < entries.len() - 1 {
-                        let entry = entries.remove(index);
-                        entries.insert(index + 1, entry);
-                        index += 1;
-                    }
+                    todo!();
+                //     if index < entries.len() - 1 {
+                //         let entry = entries.remove(index);
+                //         entries.insert(index + 1, entry);
+                //         index += 1;
+                //     }
                 }
                 _ => {}
             }
@@ -237,11 +198,13 @@ fn main() -> Result<()> {
         .iter()
         .map(|entry| {
             let link = format!("[{}]({})\n", entry.title, entry.link);
-            link + entry.notes
+            link + entry
+                .notes
                 .iter()
                 .map(|l| format!("\t{}", l))
                 .collect::<Vec<String>>()
-                .join("\n").as_str()
+                .join("\n")
+                .as_str()
         })
         .collect::<Vec<String>>()
         .join("\n");
@@ -254,3 +217,4 @@ fn main() -> Result<()> {
 
     Ok(())
 }
+
