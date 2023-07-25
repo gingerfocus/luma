@@ -2,10 +2,6 @@
 // mod state;
 mod link;
 
-use crate::{
-    // render::Line,
-    // state::{MarkdownFile, Section},
-};
 use anyhow::Result;
 use crossterm::{
     cursor,
@@ -20,7 +16,7 @@ use rustyline::{history::FileHistory, Editor};
 use std::{
     cmp::{max, min},
     fs,
-    io::stdout,
+    io::{stdout, BufReader},
     process,
 };
 
@@ -46,6 +42,39 @@ fn main() -> Result<()> {
     )?;
 
     let mut index: usize = 0; // the place of the cursor along the screen
+
+    let f = fs::File::open(&file)?;
+    let rd = BufReader::new(f);
+
+    let mut is_first = true;
+
+    // .fold(Vec::new(), |mut acc, line| {
+    //     if line.starts_with('[') && line.ends_with(')') {
+    //         acc.push(line.to_string());
+    //     } else {
+    //         let last = acc.last_mut().unwrap();
+    //         last.push_str(line);
+    //     }
+    //     acc
+    // })
+    // .filter(|l| l.starts_with('[') && l.ends_with(')'))
+    // .map(|line| {
+    //     // TODO destructure using a regex
+    //     let items: Vec<&str> = line.split("](").take(2).collect();
+    //     let title = items[0].replacen('[', "", 1);
+    //     let link = items[1].replacen(')', "", 1);
+    //     Entry { link, title }
+    // })
+
+    let builder = rustyline::config::Builder::new();
+    let conf = builder
+        // .completion_type(rustyline::config::CompletionType::List)
+        .edit_mode(rustyline::config::EditMode::Vi)
+        .build();
+
+    let mut l: Editor<(), FileHistory> = rustyline::Editor::with_config(conf)?;
+
+    let mut index: u32 = 0;
     let mut run = true;
 
     // let mut full_lines: Vec<Line> = markdown.lines();
@@ -65,15 +94,13 @@ fn main() -> Result<()> {
             .children()
             .unwrap()
             .iter()
-            .map(|child| {
+            .flat_map(|child| {
                 if let Node::Link(l) = child {
                     Some(l)
                 } else {
                     None
                 }
             })
-            .filter(|e| e.is_some())
-            .map(|e| e.unwrap())
             .skip(starting)
             .take(height - 1)
             .enumerate()
@@ -203,7 +230,7 @@ fn main() -> Result<()> {
     }
 
     crossterm::terminal::disable_raw_mode()?;
-    // execute!(stdout, LeaveAlternateScreen)?;
+    execute!(stdout, LeaveAlternateScreen)?;
 
     // let out = markdown
     //     .sections
