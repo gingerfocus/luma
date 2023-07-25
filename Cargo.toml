@@ -1,11 +1,10 @@
 [package]
-name = "lynkd"
+name = "luma"
 version = "0.1.1"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+markdown = "1.0.0-alpha.11"
 term_size = "0.3.2"
 crossterm = "0.20.0"
 rustyline = "11.0.0"

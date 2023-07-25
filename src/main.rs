@@ -1,9 +1,10 @@
-mod render;
-mod state;
+// mod render;
+// mod state;
+mod link;
 
 use crate::{
-    render::Line,
-    state::{MarkdownFile, Section},
+    // render::Line,
+    // state::{MarkdownFile, Section},
 };
 use anyhow::Result;
 use crossterm::{
@@ -12,8 +13,9 @@ use crossterm::{
     execute,
     terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use markdown::mdast::Node;
 use rustyline::{history::FileHistory, Editor};
-use state::Link;
+// use state::Link;
 
 use std::{
     cmp::{max, min},
@@ -32,13 +34,13 @@ fn main() -> Result<()> {
     execute!(stdout, EnterAlternateScreen).unwrap();
     crossterm::terminal::enable_raw_mode().unwrap();
 
-    let f = fs::File::open(&file)?;
-    let mut markdown = MarkdownFile::from_file(f);
+    let content = fs::read_to_string(&file)?;
+    let mut markdown = markdown::to_mdast(&content, &markdown::ParseOptions::default()).unwrap();
 
     // create the line reader that is used to get input from the user
     let mut l: Editor<(), FileHistory> = rustyline::Editor::with_config(
         rustyline::config::Builder::new()
-            .completion_type(rustyline::config::CompletionType::List)
+            // .completion_type(rustyline::config::CompletionType::List)
             .edit_mode(rustyline::config::EditMode::Vi)
             .build(),
     )?;
@@ -46,7 +48,7 @@ fn main() -> Result<()> {
     let mut index: usize = 0; // the place of the cursor along the screen
     let mut run = true;
 
-    let mut full_lines: Vec<Line> = markdown.lines();
+    // let mut full_lines: Vec<Line> = markdown.lines();
 
     while run {
         execute!(stdout, Clear(ClearType::All)).unwrap();
@@ -57,30 +59,50 @@ fn main() -> Result<()> {
 
         let mut print = 0;
 
-        let mut active_lines: Vec<&mut Line> = Vec::new();
+        // let mut active_lines: Vec<&mut Line> = Vec::new();
 
-        full_lines
-            .iter_mut()
+        markdown
+            .children()
+            .unwrap()
+            .iter()
+            .map(|child| {
+                if let Node::Link(l) = child {
+                    Some(l)
+                } else {
+                    None
+                }
+            })
+            .filter(|e| e.is_some())
+            .map(|e| e.unwrap())
             .skip(starting)
             .take(height - 1)
-            .for_each(|line| {
+            .enumerate()
+            .for_each(|(i, child)| {
                 execute!(stdout, cursor::MoveTo(0, print as u16)).unwrap();
-                print!("{}", line.display());
-                // print!("{}: {}", j + starting, entry.title);
-
-                print += 1;
-
-                // if !entry.folded {
-                //     for l in entry.notes.iter() {
-                //         execute!(stdout, cursor::MoveTo(0, print as u16)).unwrap();
-                //         print!("\t{}", l);
-                //         active_lines.push(Line::Note);
-                //         print += 1;
-                //     }
-                // }
-
-                active_lines.push(line);
+                let t = &child.title;
+                let text = t.clone().unwrap();
+                print!("{}: {}", i + starting, text);
             });
+        // full_lines
+        //     .iter_mut()
+        //     .skip(starting)
+        //     .take(height - 1)
+        //     .for_each(|line| {
+        //         print!("{}", line.display());
+        //
+        //         print += 1;
+        //
+        //         // if !entry.folded {
+        //         //     for l in entry.notes.iter() {
+        //         //         execute!(stdout, cursor::MoveTo(0, print as u16)).unwrap();
+        //         //         print!("\t{}", l);
+        //         //         active_lines.push(Line::Note);
+        //         //         print += 1;
+        //         //     }
+        //         // }
+        //
+        //         active_lines.push(line);
+        //     });
 
         let cursor_pos = min(index as u16, 5);
         execute!(stdout, cursor::MoveTo(0, cursor_pos)).unwrap();
@@ -101,29 +123,29 @@ fn main() -> Result<()> {
                 Esc => { /* cur_mode = Mode::Normal; */ }
                 Char('q') => run = false,
                 Char('j') | Down => {
-                    if index < markdown.sections.len() - 1 {
-                        index += 1
-                    }
+                    // if index < markdown.sections.len() - 1 {
+                    //     index += 1
+                    // }
                 }
                 Char('k') | Up => index = index.saturating_sub(1),
                 Char('g') => index = 0,
-                Char('G') => index = markdown.sections.len() - 1,
+                // Char('G') => index = markdown.sections.len() - 1,
                 Char('i') => {
-                    execute!(stdout, cursor::MoveTo(0, height as u16))?;
+                    // execute!(stdout, cursor::MoveTo(0, height as u16))?;
                     let title = l.readline("Title: ")?;
 
-                    execute!(stdout, cursor::MoveTo(0, height as u16))?;
+                    // execute!(stdout, cursor::MoveTo(0, height as u16))?;
                     let url = l.readline("URL: ")?;
 
-                    markdown
-                        .current_section(index)
-                        .links
-                        .push(Link::new(title, url));
+                    // markdown
+                    //     .current_section(index)
+                    //     .links
+                    //     .push(Link::new(title, url));
                 }
                 Enter => {
-                    if let Some(Line::Link(lnk, _sec)) = active_lines.get(index) {
-                        lnk.open()?;
-                    }
+                    // if let Some(Line::Link(lnk, _sec)) = active_lines.get(index) {
+                    //     lnk.open()?;
+                    // }
                 }
                 Char('m') => {
                     todo!();
@@ -181,20 +203,20 @@ fn main() -> Result<()> {
     }
 
     crossterm::terminal::disable_raw_mode()?;
-    execute!(stdout, LeaveAlternateScreen)?;
+    // execute!(stdout, LeaveAlternateScreen)?;
 
-    let out = markdown
-        .sections
-        .iter()
-        .map(|sec| sec.format())
-        .collect::<Vec<String>>()
-        .join("\n");
+    // let out = markdown
+    //     .sections
+    //     .iter()
+    //     .map(|sec| sec.format())
+    //     .collect::<Vec<String>>()
+    //     .join("\n");
 
-    execute!(stdout, Clear(ClearType::All))?;
+    // execute!(stdout, Clear(ClearType::All))?;
 
     let line = l.readline_with_initial("Save: ", (&file, ""))?;
 
-    fs::write(line, out)?;
+    // fs::write(line, out)?;
 
     Ok(())
 }

@@ -223,46 +223,4 @@ pub struct Link {
     notes: Vec<String>,
 }
 
-impl Link {
-    pub fn open(&self) -> anyhow::Result<()> {
-        _ = std::process::Command::new("xdg-open")
-            .arg(&self.link)
-            .output()
-            .unwrap();
-        Ok(())
-    }
 
-    pub fn format(&self) -> String {
-        let link = self.link_format();
-        link + self
-            .notes
-            .iter()
-            .map(|l| format!("\t- {}", l))
-            .collect::<Vec<String>>()
-            .join("\n")
-            .as_str()
-    }
-
-    pub fn link_format(&self) -> String {
-        format!("[{}]({})", self.title, self.link)
-    }
-
-    pub fn new(title: String, link: String) -> Self {
-        Link {
-            title,
-            link,
-            notes: Vec::new(),
-        }
-    }
-
-    pub fn from_string(s: String) -> Self {
-        let items: Vec<&str> = s.split("](").take(2).collect();
-        let title = items[0].replacen('[', "", 1);
-        let link = items[1].replacen(')', "", 1);
-        Link {
-            link,
-            title,
-            notes: Vec::new(),
-        }
-    }
-}

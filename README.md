@@ -1,6 +1,8 @@
-# Lynkd
+# Luma 
     
 Dead simple link viewer that interprets and outputs markdown. Much easier to use than say. In it you can veiw are collection of links in a markdown file quickly and rename, delete, open and more them around.
+
+Also an all in one editor.
 
 ### For Alpha
 - [X] Handling non-utf8 characters
