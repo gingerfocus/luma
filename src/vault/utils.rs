@@ -1,6 +1,6 @@
 use super::{
     enums::{Item, VaultItem},
-    output::error::Error,
+    output::Error,
 };
 use dunce::canonicalize;
 use fs_extra::{dir::CopyOptions, move_items};
@@ -105,10 +105,10 @@ pub fn move_item(
 }
 
 pub fn open_note(editor_data: (&String, bool), name: &str, location: &Path) -> Result<(), Error> {
-    let path = generate_item_path(&Item::Nt, name, location)?;
+    let path = generate_item_path(&Item::Note, name, location)?;
 
     if !path.exists() {
-        return Err(Error::ItemNotFound(Item::Nt, name.to_string()));
+        return Err(Error::ItemNotFound(Item::Note, name.to_string()));
     }
 
     run_editor(editor_data, &path)?;
@@ -151,7 +151,7 @@ pub fn filtered_list(item_type: &VaultItem, path: PathBuf) {
         let entry_name = entry.file_stem().unwrap().to_str().unwrap();
 
         match item_type {
-            VaultItem::Folder | VaultItem::Fd => {
+            VaultItem::Folder => {
                 if entry.is_dir() {
                     filtered_entries.push(entry_name.to_string())
                 }
@@ -241,7 +241,7 @@ fn generate_item_path(item_type: &Item, name: &str, location: &Path) -> Result<P
 
     let mut path = join_paths(vec![location.to_str().unwrap(), name]);
 
-    if let Item::Nt = item_type {
+    if let Item::Note = item_type {
         path.set_extension("md");
     }
 
@@ -253,7 +253,7 @@ fn generate_item_path(item_type: &Item, name: &str, location: &Path) -> Result<P
 // These errors are then converted to native errors in their corresponding functions above.
 
 fn create_item_collect(item_type: &Item, path: &Path) -> Result<(), std::io::Error> {
-    if let Item::Nt = item_type {
+    if let Item::Note = item_type {
         File::options().create_new(true).write(true).open(path)?;
     } else {
         DirBuilder::new().create(path)?;
@@ -263,7 +263,7 @@ fn create_item_collect(item_type: &Item, path: &Path) -> Result<(), std::io::Err
 }
 
 fn remove_item_collect(item_type: &Item, path: &Path) -> Result<(), std::io::Error> {
-    if let Item::Nt = item_type {
+    if let Item::Note = item_type {
         remove_file(path)?;
     } else {
         remove_dir_all(path)?;

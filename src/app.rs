@@ -1,12 +1,11 @@
-use crate::{event::Key, prelude::*};
+use crate::{event::Key, prelude::*, screen::Screen};
 
-#[derive(Debug)]
+#[derive(Default)]
 pub struct App {
     pub run: bool,
-    is_valid: bool,
-    stdout: io::Stdout,
-    root: Node,
+    screen: Screen,
     mode: Mode,
+    pub needs_redraw: bool,
 }
 
 #[derive(Debug, Default)]
@@ -18,14 +17,60 @@ enum Mode {
 }
 
 impl App {
-    pub fn new(root: Node) -> Self {
-        Self {
-            run: true,
-            is_valid: false,
-            stdout: io::stdout(),
-            root,
-            mode: Mode::Normal,
-        }
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn init(&mut self) -> anyhow::Result<()> {
+        self.screen.init()?;
+
+        self.needs_redraw = true;
+        self.run = true;
+
+        Ok(())
+    }
+
+    // #[allow(unused)]
+    // pub fn update_state(&mut self, _mpd_state: ClientState) {}
+    //
+    // fn handle_key_event(&mut self, key: Key, client: &mut Client) -> MumiRequest {
+    //     match key {
+    //         Key::Char('q') | Key::Ctrl('c') | Key::Esc => MumiRequest::Exit,
+    //
+    //         Key::Char('h') | Key::Left => self.screens.move_left(),
+    //         Key::Char('j') | Key::Down => self.screens.move_down(),
+    //         Key::Char('k') | Key::Up => self.screens.move_up(),
+    //         Key::Char('l') | Key::Right => self.screens.move_up(),
+    //
+    //         Key::Char('p') => client.toggle(),
+    //
+    //         Key::Char('1') => self.screens.select_tab(0),
+    //         Key::Char('2') => self.screens.select_tab(1),
+    //         Key::Char('3') => self.screens.select_tab(2),
+    //         Key::Char('4') => self.screens.select_tab(3),
+    //         Key::Tab => self.screens.next_tab(),
+    //         _k => MumiRequest::Nothing,
+    //     }
+    // }
+    //
+    // pub fn update(&mut self, event: Event, client: &mut Client) {
+    //     let req = match event {
+    //         Event::Input(ke) => self.handle_key_event(ke, client),
+    //         Event::Resize(x, y) => self.screens.configure_surface(x, y),
+    //         Event::GainedFocus(_did) => todo!(),
+    //         Event::Click(_) => todo!(),
+    //         Event::Paste(_) => todo!(),
+    //         Event::Tick => MumiRequest::Nothing,
+    //     };
+    //     match req {
+    //         MumiRequest::Nothing => {}
+    //         MumiRequest::Redraw => self.needs_redraw = true,
+    //         MumiRequest::Exit => self.running = false,
+    //     }
+    // }
+
+    pub fn can_run(&self) -> bool {
+        self.run && self.screen.is_valid
     }
 
     pub fn read_event(&self) -> Event {
@@ -36,42 +81,14 @@ impl App {
         }
     }
 
-    pub fn render(&mut self) {
-        crossterm::execute!(
-            self.stdout,
-            crossterm::terminal::Clear(crossterm::terminal::ClearType::All)
-        )
-        .unwrap();
-        _ = crossterm::terminal::disable_raw_mode();
-        println!("{}", self.root.to_string());
-        _ = crossterm::terminal::enable_raw_mode();
-
-        //     markdown
-        //         .children()
-        //         .unwrap()
-        //         .iter()
-        //         .flat_map(|child| {
-        //             if let Node::Link(l) = child {
-        //                 Some(l)
-        //             } else {
-        //                 None
-        //             }
-        //         })
-        //         .skip(starting)
-        //         .take(height - 1)
-        //         .enumerate()
-        //         .for_each(|(i, child)| {
-        //             execute!(stdout, cursor::MoveTo(0, print as u16)).unwrap();
-        //             let t = &child.title;
-        //             let text = t.clone().unwrap();
-        //             print!("{}: {}", i + starting, text);
-        //         });
-        //
-        //     let cursor_pos = std::cmp::min(index as u16, 5);
-        //     execute!(stdout, cursor::MoveTo(0, cursor_pos)).unwrap();
+    pub fn redraw(&mut self, state: &State) {
+        if self.needs_redraw {
+            self.screen.draw(state);
+            self.needs_redraw = false;
+        }
     }
 
-    pub fn handle(&mut self, event: Event) {
+    pub fn handle(&mut self, event: Event, state: &mut State) {
         match event {
             Event::GainedFocus(_did) => todo!(),
             Event::Input(key) => self.handle_key(key),
@@ -80,6 +97,7 @@ impl App {
             Event::Resize(_, _) => todo!(),
             Event::Tick => {}
         }
+        self.needs_redraw = true;
     }
 
     fn handle_key_insert(&mut self, key: Key) {
@@ -97,15 +115,18 @@ impl App {
             Mode::Visual => todo!("visual mode key handle"),
         }
     }
+
     fn handle_key_normal(&mut self, key: Key) {
         match key {
             Key::Char('q') | Key::Ctrl('c') => self.run = false,
             Key::Esc => {}
             Key::Left | Key::Char('h') => todo!(),
-            Key::Down | Key::Char('j') => todo!(),
-            Key::Up | Key::Char('k') => todo!(),
+            Key::Down | Key::Char('j') => self.screen.move_down(),
+            Key::Up | Key::Char('k') => self.screen.move_up(),
             Key::Right | Key::Char('l') => todo!(),
             Key::Char('i') => self.mode = Mode::Insert,
+
+            Key::End => todo!("open selected link"),
 
             Key::Char('g') => todo!("go to the top"),
             Key::Char('G') => todo!("go to the bottom"),
@@ -117,30 +138,22 @@ impl App {
 
             Key::Ctrl('j') => todo!("move line up 1"),
             Key::Ctrl('k') => todo!("move line down 1"),
+
+            Key::Char('1') => self.screen.selecte_tab(0),
+            Key::Char('2') => self.screen.selecte_tab(1),
+
             Key::Tab => todo!(),
             Key::Backspace => todo!(),
             Key::Alt('e') => todo!("enter search"),
             _ => todo!(),
         }
     }
-    pub fn can_run(&self) -> bool {
-        self.run && self.is_valid
-    }
-
-    pub fn init(&mut self) -> anyhow::Result<()> {
-        crossterm::execute!(self.stdout, crossterm::terminal::EnterAlternateScreen)?;
-        crossterm::terminal::enable_raw_mode()?;
-        self.is_valid = true;
-        Ok(())
-    }
 
     pub fn deinit(&mut self) -> anyhow::Result<()> {
-        if self.is_valid {
-            crossterm::terminal::disable_raw_mode()?;
-            crossterm::execute!(self.stdout, crossterm::terminal::LeaveAlternateScreen)?;
-            // crossterm::execute!(stdout, Clear(ClearType::All))?;
-            self.is_valid = false;
-        }
+        self.screen.deinit()?;
+
+        self.run = false;
+
         Ok(())
     }
 }

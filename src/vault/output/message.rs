@@ -22,18 +22,18 @@ impl Display for Message {
             match self {
                 Message::VaultEntered(name) => format!("entered \x1b[0;34m{name}\x1b[0m"),
                 Message::ItemCreated(item_type, name) =>
-                    format!("{} \x1b[0;34m{name}\x1b[0m created", item_type.full()),
+                    format!("{} \x1b[0;34m{name}\x1b[0m created", item_type.to_string()),
                 Message::ItemRemoved(item_type, name) =>
-                    format!("{} \x1b[0;34m{name}\x1b[0m removed", item_type.full()),
+                    format!("{} \x1b[0;34m{name}\x1b[0m removed", item_type.to_string()),
                 Message::ItemRenamed(item_type, name, new_name) => format!(
                     "{} \x1b[0;34m{name}\x1b[0m renamed to \x1b[0;34m{new_name}\x1b[0m",
-                    item_type.full(),
+                    item_type.to_string()
                 ),
                 Message::ItemMoved(item_type, name) =>
-                    format!("{} \x1b[0;34m{name}\x1b[0m moved", item_type.full()),
+                    format!("{} \x1b[0;34m{name}\x1b[0m moved", item_type.to_string()),
                 Message::ItemVMoved(item_type, name, vault_name) => format!(
                     "{} \x1b[0;34m{name}\x1b[0m moved to vault \x1b[0;34m{vault_name}\x1b[0m",
-                    item_type.full(),
+                    item_type.to_string(),
                 ),
                 Message::FolderChanged => "folder changed".to_string(),
                 Message::Config(config_type, value) =>

@@ -1,44 +1,45 @@
-#![feature(let_chains)]
-
 mod app;
 mod event;
-mod node;
+// mod node;
 mod prelude;
-mod traits;
+mod state;
 // mod vault;
+mod screen;
+
+// mod serde {
+//     pub extern crate serde as core;
+pub extern crate serde_yaml as yaml;
+//     pub extern crate toml;
+// }
 
 use crate::prelude::*;
+pub use std::io::Read;
 
 fn main() -> anyhow::Result<()> {
-    let file = std::env::args().skip(1).next().unwrap_or("new.md".into());
+    let file = std::env::args()
+        .skip(1)
+        .next()
+        .ok_or(anyhow::anyhow!("no file given"))?;
 
-    let mut f = fs::File::open(&file)?;
-    let mut content = String::new();
-    let _read_size = f.read_to_string(&mut content)?;
+    let content = fs::read_to_string(&file)?;
 
-    let markdown: Node = markdown::to_mdast(&content, &markdown::ParseOptions::default())
-        .unwrap()
-        .into();
+    let mut state = yaml::from_str::<State>(&content).unwrap();
 
-    // create the line reader that is used to get input from the user
-    // let mut l = rustyline::Editor::<(), rustyline::history::DefaultHistory>::with_config(
-    //     rustyline::config::Builder::new()
-    //         // .completion_type(rustyline::config::CompletionType::List)
-    //         .edit_mode(rustyline::config::EditMode::Vi)
-    //         .build(),
-    // );
+    let mut app = App::new();
 
-    let mut app = App::new(markdown);
+    // --------------------------------------------
     app.init()?;
+    app.redraw(&state);
 
     while app.can_run() {
         let event = app.read_event();
-        app.handle(event);
+        app.handle(event, &mut state);
 
-        app.render();
+        app.redraw(&state);
     }
 
     app.deinit()?;
+    // --------------------------------------------
 
     // let file = l.readline_with_initial("Save: ", (&file, ""))?;
     // let out = markdown.to_string();

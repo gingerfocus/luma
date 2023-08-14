@@ -1,4 +1,4 @@
-use super::super::{enums::ConfigType, output::error::Error, traits::FileIO, utils::run_editor};
+use super::super::{enums::ConfigType, output::Error, traits::FileIO, utils::run_editor};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

@@ -3,31 +3,31 @@ use clap::ValueEnum;
 #[derive(ValueEnum, Clone, Debug)]
 pub enum Item {
     Vault,
-    Vl,
     Note,
-    Nt,
     Folder,
-    Fd,
+}
+impl Item {
+    pub fn fs_name(&self) -> String {
+        Into::<Item>::into(self.clone()).to_string()
+    }
 }
 
-impl Item {
-    pub fn to_vault_item(&self) -> VaultItem {
+impl Into<VaultItem> for Item {
+    fn into(self) -> VaultItem {
         match self {
-            Item::Vault | Item::Vl => VaultItem::Fd,
-            Item::Note | Item::Nt => VaultItem::Nt,
-            Item::Folder | Item::Fd => VaultItem::Fd,
+            Item::Vault => VaultItem::Folder,
+            Item::Note => VaultItem::Note,
+            Item::Folder => VaultItem::Folder,
         }
     }
+}
 
-    pub fn fs_name(&self) -> String {
-        self.to_vault_item().full()
-    }
-
-    pub fn full(&self) -> String {
+impl ToString for Item {
+    fn to_string(&self) -> String {
         match self {
-            Item::Vault | Item::Vl => "vault".to_string(),
-            Item::Note | Item::Nt => "note".to_string(),
-            Item::Folder | Item::Fd => "folder".to_string(),
+            Item::Vault => "vault".to_string(),
+            Item::Note => "note".to_string(),
+            Item::Folder => "folder".to_string(),
         }
     }
 }
@@ -35,23 +35,23 @@ impl Item {
 #[derive(ValueEnum, Clone, Debug)]
 pub enum VaultItem {
     Note,
-    Nt,
     Folder,
-    Fd,
 }
 
-impl VaultItem {
-    pub fn to_item(&self) -> Item {
+impl Into<Item> for VaultItem {
+    fn into(self) -> Item {
         match self {
-            VaultItem::Note | VaultItem::Nt => Item::Nt,
-            VaultItem::Folder | VaultItem::Fd => Item::Fd,
+            VaultItem::Note => Item::Note,
+            VaultItem::Folder => Item::Folder,
         }
     }
+}
 
-    pub fn full(&self) -> String {
+impl ToString for VaultItem {
+    fn to_string(&self) -> String {
         match self {
-            VaultItem::Note | VaultItem::Nt => "note".to_string(),
-            VaultItem::Folder | VaultItem::Fd => "folder".to_string(),
+            VaultItem::Note => "note".to_string(),
+            VaultItem::Folder => "folder".to_string(),
         }
     }
 }

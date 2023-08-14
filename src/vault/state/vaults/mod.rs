@@ -3,7 +3,7 @@ pub mod vault;
 
 use crate::vault::{
     enums::{Item, VaultItem},
-    output::error::Error,
+    output::Error,
     traits::FileIO,
     utils::{create_item, join_paths, move_item, remove_item, rename_item, resolve_path},
 };
@@ -90,7 +90,7 @@ impl Vaults {
         }
 
         let location = resolve_path(location)?;
-        let path = create_item(Item::Vl, name, &location)?;
+        let path = create_item(Item::Vault, name, &location)?;
         let data_path = join_paths(vec![path.to_str().unwrap(), ".jot/data"]);
 
         let mut vault = Vault::load_path(data_path);
@@ -105,7 +105,7 @@ impl Vaults {
 
     pub fn remove_vault(&mut self, name: &str) -> Result<(), Error> {
         if let Some(vault_location) = self.data.get_vault_location(name) {
-            remove_item(Item::Vl, name, vault_location)?;
+            remove_item(Item::Vault, name, vault_location)?;
             self.data.remove_vault(name);
 
             if let Some(current_vault_name) = self.data.get_current_vault() {
@@ -126,7 +126,7 @@ impl Vaults {
         }
 
         if let Some(vault_location) = self.data.get_vault_location(name) {
-            let path = rename_item(Item::Vl, name, new_name, vault_location)?;
+            let path = rename_item(Item::Vault, name, new_name, vault_location)?;
             let data_path = join_paths(vec![path.to_str().unwrap(), ".jot/data"]);
 
             Vault::load_path(data_path).set_name(new_name.to_owned());
@@ -150,7 +150,7 @@ impl Vaults {
         }
 
         if let Some(original_location) = self.data.get_vault_location(name) {
-            let new_path = move_item(Item::Vl, name, original_location, new_location)?;
+            let new_path = move_item(Item::Vault, name, original_location, new_location)?;
             let data_path = join_paths(vec![new_path.to_str().unwrap(), ".jot/data"]);
 
             let new_location = resolve_path(new_location)?;

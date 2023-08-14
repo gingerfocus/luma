@@ -123,8 +123,7 @@ impl Line<'_> {
 //                    .split(div[1])[1];
 //
 //
-//     * ┌──────────────────────────────┐
-//     * */
+//     ┌──────────────────────────────┐
 //
 //     fn draw_main(&mut self) -> Result<()> {
 //         // let desktop = Paragraph::new("this is where the current boot os would go");

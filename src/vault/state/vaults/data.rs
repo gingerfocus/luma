@@ -11,9 +11,9 @@ pub struct Data {
 
 impl FileIO for Data {
     fn path(&self) -> PathBuf {
-        if let Some(dirs) = ProjectDirs::from("com", "", "jot") {
+        if let Some(dirs) = ProjectDirs::from("org", "focus", "luma") {
             let mut path = dirs.data_dir().to_path_buf();
-            path.push("vaults");
+            path.push("vaults.toml");
             path
         } else {
             panic!("current path couldn't be generated")

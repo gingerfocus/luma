@@ -1,6 +1,6 @@
 use crate::vault::{
     enums::VaultItem,
-    output::error::Error,
+    output::Error,
     traits::FileIO,
     utils::{
         create_item, filtered_list, join_paths, move_item, open_folder, open_note, rec_list,
@@ -80,7 +80,7 @@ impl Vault {
     pub fn create_vault_item(&self, item_type: VaultItem, name: &str) -> Result<(), Error> {
         let location = self.generate_location();
 
-        create_item(item_type.to_item(), name, &location)?;
+        create_item(item_type.into(), name, &location)?;
 
         Ok(())
     }
@@ -88,7 +88,7 @@ impl Vault {
     pub fn remove_vault_item(&self, item_type: VaultItem, name: &str) -> Result<(), Error> {
         let location = self.generate_location();
 
-        remove_item(item_type.to_item(), name, &location)?;
+        remove_item(item_type.into(), name, &location)?;
 
         Ok(())
     }
@@ -101,7 +101,7 @@ impl Vault {
     ) -> Result<(), Error> {
         let location = self.generate_location();
 
-        rename_item(item_type.to_item(), name, new_name, &location)?;
+        rename_item(item_type.into(), name, new_name, &location)?;
 
         Ok(())
     }
@@ -121,7 +121,7 @@ impl Vault {
             return Err(Error::OutOfBounds);
         }
 
-        move_item(item_type.to_item(), name, &original_location, &new_location)?;
+        move_item(item_type.into(), name, &original_location, &new_location)?;
 
         Ok(())
     }
@@ -138,14 +138,19 @@ impl Vault {
         if vault_name == self.get_name() {
             print!(
                 "{} {} already exists in vault {}",
-                item_type.full(),
+                item_type.to_string(),
                 name,
                 vault_name
             )
         }
 
         let new_location = join_paths(vec![vault_location.to_str().unwrap(), vault_name]);
-        move_item(item_type.to_item(), name, &original_location, &new_location)?;
+        move_item(
+            item_type.clone().into(),
+            name,
+            &original_location,
+            &new_location,
+        )?;
 
         Ok(())
     }
