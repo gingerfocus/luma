@@ -1,8 +1,69 @@
-// use anyhow::Result;
-// use crossterm::terminal::{
-//     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
-// };
-// use std::io::{self, Stdout};
+use tui::{prelude::*, widgets::*, Frame};
+
+use crate::prelude::*;
+
+pub fn render_prompt(f: &mut Frame<CrosstermBackend<io::Stdout>>, msg: &str) {
+    let Rect { width, height, .. } = f.size();
+    let new_width = msg.len() as u16 + 2;
+    let new_height = 3;
+
+    let x = (width - new_width) / 2;
+    let y = (height - new_height) / 2;
+
+    let render_box = Rect {
+        x,
+        y,
+        width: new_width,
+        height: new_height,
+    };
+
+    let paragraph = Paragraph::new(msg.clone())
+        .block(
+            Block::default()
+                .title("Prompt")
+                .borders(Borders::all())
+                .border_type(BorderType::Rounded),
+        )
+        .alignment(Alignment::Center);
+
+    f.render_widget(paragraph, render_box);
+}
+
+pub fn render_input(f: &mut Frame<CrosstermBackend<io::Stdout>>, msg: &str) {
+    let Rect { width, height, .. } = f.size();
+    let new_width = std::cmp::max(msg.len() as u16 + 2, width - 20);
+    let new_height = 3;
+    let x = (width - new_width) / 2;
+    let y = (height - new_height) / 2;
+
+    let render_box = Rect {
+        x,
+        y,
+        width: new_width,
+        height: new_height,
+    };
+
+    let paragraph = Paragraph::new(msg.clone())
+        .block(
+            Block::default()
+                .title("Prompt")
+                .borders(Borders::all())
+                .border_type(BorderType::Rounded),
+        )
+        .alignment(Alignment::Left);
+
+    let clear_box = Rect {
+        x: x - 2,
+        y,
+        width: new_width + 1,
+        height: new_height + 1,
+    };
+
+    f.render_widget(Clear, clear_box);
+    f.render_widget(paragraph, render_box);
+}
+
+// use std::io;
 // use tui::{
 //     backend::CrosstermBackend,
 //     layout::{Constraint, Direction, Layout, Rect},
@@ -15,115 +76,9 @@
 //     Terminal,
 // };
 
-use std::sync::Mutex;
-
-use crate::state::{Link, Section};
-
-// section is none when it falls within the root
-pub enum Line<'a> {
-    Header {
-        display: &'a str,
-        section: Option<Mutex<Section>>,
-    },
-    Link {
-        link: &'a Link,
-        parent_sec: Option<Mutex<Section>>,
-    },
-    Note {
-        display: &'a str,
-        parent_sec: Option<Mutex<Section>>,
-    },
-}
-
-impl Line<'_> {
-    pub fn display(&self) -> String {
-        match self {
-            Line::Header { display: d, .. } => d.to_string(),
-            Line::Link { link: l, .. } => l.format(),
-            Line::Note { display: d, .. } => d.to_string(),
-        }
-    }
-}
-
-// pub enum Updater {
-//     Full,
-//     Main,
-//     Status,
-//     None,
-// }
-//
-// struct Screen {
-//     main_box: Rect,
-//     status_line: Rect,
-//     term: Terminal<CrosstermBackend<Stdout>>,
-//     last_window_size: (u16, u16),
-// }
-//
 // impl Screen {
-//     fn new() -> Result<Self> {
-//         // setup terminal
-//         enable_raw_mode()?;
-//         let mut stdout = io::stdout();
-//         crossterm::execute!(stdout, EnterAlternateScreen)?;
-//         let backend = CrosstermBackend::new(stdout);
-//         let mut term = Terminal::new(backend)?;
-//
-//         term.clear()?;
-//
-//         let Rect { _, _, width, height } = term.size()?;
-//         let main_box = Rect::new(0, 0, size.width, size.height - 1);
-//         let status_line = Rect::new(0, size.height - 1, size.width, size.height);
-//
-//         Ok(Screen {
-//             main_box,
-//             status_line,
-//             term,
-//             last_window_size: size,
-//         })
-//     }
-//
-//     /*
-//     * ┌──────────────��──────────────┐
-//     *
-//     *)
-//                    .direction(Direction::Vertical)
-//                    // .margin(1)
-//                    .constraints(
-//                        [
-//                            Constraint::Length(1), // status bar
-//                            Constraint::Min(1), // the rest
-//                        ]
-//                        .as_ref(),
-//                    )
-//                    .split(f.size());
-//
-//                let status_line = chunks[0];
-//
-//                let div = Layout::default()
-//                    .direction(Direction::Vertical)
-//                    .constraints(
-//                        [
-//                            Constraint::Percentage(20),
-//                            Constraint::Min(6),
-//                            Constraint::Percentage(20),
-//                        ]
-//                        .as_ref(),
-//                    )
-//                    .split(chunks[1]);
-//
-//                let main_box: Rect = Layout::default()
-//                    .direction(Direction::Horizontal)
-//                    .constraints([
-//                        Constraint::Percentage(20),
-//                        // Constraint::Percentage(60),
-//                        Constraint::Min(6),
-//                        Constraint::Percentage(20),
-//                        ].as_ref()
-//                    )
-//                    .split(div[1])[1];
-//
-//
-//     ┌──────────────────────────────┐
+//     ┌────────────────────────────┐
+//     ┌────────────────────────────┐
 //
 //     fn draw_main(&mut self) -> Result<()> {
 //         // let desktop = Paragraph::new("this is where the current boot os would go");
@@ -131,8 +86,6 @@ impl Line<'_> {
 //
 //         // let name = Block::default().title("Hostname").borders(Borders::ALL);
 //         // f.render_widget(name, main_box);
-//
-//         // log.write("Wrote box".as_bytes()).unwrap();
 //
 //         // let pass = Block::default().title("Password").borders(Borders::ALL);
 //         // f.render_widget(pass, chunks[3]);

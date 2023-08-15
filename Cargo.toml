@@ -1,19 +1,19 @@
 [package]
 name = "luma"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
-description = "⚡Rapid note management for the terminal."
+description = "⚡Note and Link management to organize the internet."
 
 [dependencies]
+tui = { package = "ratatui", version = "0.22" }
 crossterm = "0.27"
-tui = { package = "ratatui", version = "0.22", features = ["all-widgets"] }
 anyhow = "1.0"
 
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
-toml = "0.7"
 
-clap = { version = "4.3", features = ["derive"] }
-directories = "5.0"
-fs_extra = "1.3"
-dunce = "1.0"
+# toml = "0.7"
+# clap = { version = "4.3", features = ["derive"] }
+# directories = "5.0"
+# fs_extra = "1.3"
+# dunce = "1.0"

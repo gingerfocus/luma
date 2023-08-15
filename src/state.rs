@@ -1,44 +1,64 @@
-use tui::widgets::{Paragraph, Wrap};
-
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct State {
-    meta: Metadata,
+    pub meta: Metadata,
     pub audios: Vec<Link>,
-    pub videos: Vec<Link>,
+    pub reading: Vec<Link>,
+}
+
+impl State {
+    pub fn set(&self, index: usize) -> &Vec<Link> {
+        match index {
+            0 => &self.audios,
+            1 => &self.reading,
+            i => panic!("invalid index: {}", i),
+        }
+    }
+    pub fn set_mut(&mut self, index: usize) -> &mut Vec<Link> {
+        match index {
+            0 => &mut self.audios,
+            1 => &mut self.reading,
+            i => panic!("invalid index: {}", i),
+        }
+    }
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Metadata {
-    download_dir: Option<String>,
+    downloads: DownloadInfo,
+    pub audio_open: OpenCommand,
+    reading_open: OpenCommand,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct DownloadInfo {
+    dir: String,
+    audio_type: Option<String>,
+    video_type: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct OpenCommand {
+    pub cmd: String,
+    pub args: Vec<String>,
 }
 
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct Link {
     pub name: String,
-    link: String,
-    file: Option<String>,
-    desc: Option<String>,
-    artist: Option<String>,
+    pub link: String,
+    pub file: Option<String>,
+    pub desc: Option<String>,
+    pub artist: Option<String>,
 }
 
 impl Link {
-    pub fn as_paragraph(&self) -> tui::widgets::Paragraph {
-        let name = Some(format!("Name: {}", self.name));
-        let link = Some(format!("Link: {}", self.link));
-        let file = self.artist.as_ref().map(|f| format!("File: {}", f));
-        let artist = self.artist.as_ref().map(|a| format!("Artist: {}", a));
-        let desc = self.desc.as_ref().map(|d| format!("Description: {}", d));
-
-        let mut buf = String::new();
-
-        [name, link, file, artist, desc]
-            .iter()
-            .flatten()
-            .for_each(|l| {
-                buf.push_str(l);
-                buf.push('\n');
-            });
-
-        Paragraph::new(buf).wrap(Wrap { trim: false })
+    pub fn new(name: String, link: String) -> Link {
+        Link {
+            name,
+            link,
+            file: None,
+            desc: None,
+            artist: None,
+        }
     }
 }

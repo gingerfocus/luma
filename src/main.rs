@@ -1,10 +1,9 @@
 mod app;
 mod event;
-// mod node;
 mod prelude;
 mod state;
 // mod vault;
-mod screen;
+mod ui;
 
 // mod serde {
 //     pub extern crate serde as core;
@@ -13,12 +12,10 @@ pub extern crate serde_yaml as yaml;
 // }
 
 use crate::prelude::*;
-pub use std::io::Read;
 
 fn main() -> anyhow::Result<()> {
     let file = std::env::args()
-        .skip(1)
-        .next()
+        .nth(1)
         .ok_or(anyhow::anyhow!("no file given"))?;
 
     let content = fs::read_to_string(&file)?;
@@ -29,13 +26,13 @@ fn main() -> anyhow::Result<()> {
 
     // --------------------------------------------
     app.init()?;
-    app.redraw(&state);
+    app.draw(&state);
 
     while app.can_run() {
         let event = app.read_event();
         app.handle(event, &mut state);
 
-        app.redraw(&state);
+        app.draw(&state);
     }
 
     app.deinit()?;

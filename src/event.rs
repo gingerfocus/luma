@@ -68,64 +68,12 @@ pub enum Key {
     /// Page Down key
     PageDown,
 
-    /// F0 key
-    F0,
-    /// F1 key
-    F1,
-    /// F2 key
-    F2,
-    /// F3 key
-    F3,
-    /// F4 key
-    F4,
-    /// F5 key
-    F5,
-    /// F6 key
-    F6,
-    /// F7 key
-    F7,
-    /// F8 key
-    F8,
-    /// F9 key
-    F9,
-    /// F10 key
-    F10,
-    /// F11 key
-    F11,
-    /// F12 key
-    F12,
+    /// F key
+    F(u8),
     Char(char),
     Ctrl(char),
     Alt(char),
     Unknown,
-}
-
-impl Key {
-    /// Returns the function key corresponding to the given number
-    ///
-    /// 1 -> F1, etc...
-    ///
-    /// # Panics
-    ///
-    /// If `n == 0 || n > 12`
-    pub fn from_f(n: u8) -> Key {
-        match n {
-            0 => Key::F0,
-            1 => Key::F1,
-            2 => Key::F2,
-            3 => Key::F3,
-            4 => Key::F4,
-            5 => Key::F5,
-            6 => Key::F6,
-            7 => Key::F7,
-            8 => Key::F8,
-            9 => Key::F9,
-            10 => Key::F10,
-            11 => Key::F11,
-            12 => Key::F12,
-            _ => panic!("unknown function key: F{}", n),
-        }
-    }
 }
 
 impl fmt::Display for Key {
@@ -207,7 +155,7 @@ impl From<event::KeyEvent> for Key {
             event::KeyEvent {
                 code: event::KeyCode::F(n),
                 ..
-            } => Key::from_f(n),
+            } => Key::F(n),
             event::KeyEvent {
                 code: event::KeyCode::Enter,
                 ..
