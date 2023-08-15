@@ -5,8 +5,8 @@ loc:
     find src/ -name "*.rs" | xargs cat | wc -l
 
 build:
-    cargo build
+    cargo build -q
 
-publish: build
-    cargo clippy -- -D warnings
-    cargo test
+publish:
+    cargo clippy -q -- -D warnings
+    cargo test -q

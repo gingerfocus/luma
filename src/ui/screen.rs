@@ -5,12 +5,11 @@ use super::render::render_prompt;
 use super::traits::AsListItem;
 use super::traits::AsParagraph;
 
-use crate::app::Mode;
 use crate::prelude::*;
 use tui::prelude::*;
 use tui::widgets::*;
 
-use crate::state::Link;
+use crate::luma::Link;
 
 pub struct Screen {
     pub is_valid: bool,
@@ -84,7 +83,7 @@ impl Screen {
         }
     }
 
-    pub fn draw(&mut self, state: &State, mode: &Mode) {
+    pub fn draw(&mut self, state: &Luma, mode: &Mode) {
         // some work before drawing
         let Rect { width, height, .. } = self.terminal.size().unwrap();
         self.configure_surface(width, height);
@@ -188,7 +187,7 @@ impl Screen {
         self.active.list.selected().unwrap_or(0)
     }
 
-    pub fn choose_set<'a>(&self, state: &'a State) -> &'a Vec<Link> {
+    pub fn choose_set<'a>(&self, state: &'a Luma) -> &'a Vec<Link> {
         match self.active.tab {
             0 => &state.audios,
             1 => &state.reading,

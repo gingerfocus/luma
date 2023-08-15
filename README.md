@@ -18,10 +18,11 @@ I have lots of ideas for what this could be in the thing and here they are
 arranged by importance
 
 ### Next
-- [ ] error handling
-- [ ] pasting
-- [ ] use $OPENER
+- [X] saving
+- [X] pasting
+- [ ] error handling (plan: bubble up errors so term can exit before they print)
 - [ ] pass app as value not struct impls (get ride of double mut problems)
+- [ ] use $OPENER
 
 ### For 1.0
 - [ ] color
