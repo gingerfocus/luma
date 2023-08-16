@@ -1,5 +1,3 @@
-mod render;
-mod screen;
-mod traits;
-
-pub use self::screen::Screen;
+pub mod render;
+pub mod screen;
+pub mod traits;

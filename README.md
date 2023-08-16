@@ -15,14 +15,15 @@ just publish
 ## Development
 
 I have lots of ideas for what this could be in the thing and here they are
-arranged by importance
+arranged by importance.
 
 ### Next
 - [X] saving
 - [X] pasting
-- [ ] error handling (plan: bubble up errors so term can exit before they print)
-- [ ] pass app as value not struct impls (get ride of double mut problems)
+- [X] better error handling
+- [ ] multiple input source (some static some dynamic)
 - [ ] use $OPENER
+- [ ] simple mpd client
 
 ### For 1.0
 - [ ] color
@@ -31,6 +32,7 @@ arranged by importance
 - [ ] highlights for tags
 - [ ] vaults of notes
 - [ ] importing text files
+- [ ] better mpd (custom client?)
 
 ### Random/Long Term Ideas
 

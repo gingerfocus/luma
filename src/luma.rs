@@ -1,4 +1,6 @@
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+use crate::ui::screen::ScreenType;
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct Luma {
     pub meta: Metadata,
     pub audios: Vec<Link>,
@@ -6,37 +8,36 @@ pub struct Luma {
 }
 
 impl Luma {
-    pub fn set(&self, index: usize) -> &Vec<Link> {
-        match index {
-            0 => &self.audios,
-            1 => &self.reading,
-            i => panic!("invalid index: {}", i),
+    // TODO: convert this to Vec<&Link>
+    pub fn set(&self, tab: ScreenType) -> &Vec<Link> {
+        match tab {
+            ScreenType::Audio => self.audios.as_ref(),
+            ScreenType::Reading => self.reading.as_ref(),
         }
     }
-    pub fn set_mut(&mut self, index: usize) -> &mut Vec<Link> {
-        match index {
-            0 => &mut self.audios,
-            1 => &mut self.reading,
-            i => panic!("invalid index: {}", i),
+    pub fn set_mut(&mut self, tab: ScreenType) -> &mut Vec<Link> {
+        match tab {
+            ScreenType::Audio => &mut self.audios,
+            ScreenType::Reading => &mut self.reading,
         }
     }
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct Metadata {
     downloads: DownloadInfo,
     pub audio_open: OpenCommand,
     reading_open: OpenCommand,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Default)]
 struct DownloadInfo {
     dir: String,
     audio_type: Option<String>,
     video_type: Option<String>,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct OpenCommand {
     pub cmd: String,
     pub args: Vec<String>,
@@ -52,10 +53,10 @@ pub struct Link {
 }
 
 impl Link {
-    pub fn new(name: String, link: String) -> Link {
+    pub fn new(name: impl Into<String>, link: impl Into<String>) -> Link {
         Link {
-            name,
-            link,
+            name: name.into(),
+            link: link.into(),
             file: None,
             desc: None,
             artist: None,

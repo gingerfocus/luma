@@ -1,4 +1,6 @@
 target/
 luma.log
 hyprvim/
-INDEX.yml
+temp/
+starter/
+@INDEX.yml

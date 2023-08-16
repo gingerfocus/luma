@@ -1,11 +1,18 @@
-use std::{cell::RefCell, process::Stdio, rc::Rc};
+use anyhow::Ok;
+use std::{process::Stdio, rc::Rc};
+use tui::{prelude::*, widgets::Clear};
 
-use crate::{event::Key, luma::Link, prelude::*, ui::Screen};
+use crate::{
+    event::Key,
+    mode::{InsertData, PromptData},
+    prelude::*,
+    ui::screen::{Screen, ScreenType},
+};
 
-#[derive(Default)]
 pub struct App {
     pub run: bool,
     screen: Screen,
+    terminal: Terminal<CrosstermBackend<io::Stdout>>,
     // Will always be some when in prompt mode
     // prompt_callback: Option<Box<dyn Fn(&mut State) -> ()>>,
 
@@ -14,11 +21,19 @@ pub struct App {
 }
 
 impl App {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new() -> anyhow::Result<Self> {
+        let terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
+
+        Ok(Self {
+            run: true,
+            screen: Screen::default(),
+            terminal,
+        })
     }
 
     pub fn init(&mut self) -> anyhow::Result<()> {
+        let Rect { width, height, .. } = self.terminal.size()?;
+        self.screen.configure_surface(width, height);
         self.screen.init()?;
 
         self.run = true;
@@ -26,8 +41,71 @@ impl App {
         Ok(())
     }
 
-    pub fn draw(&mut self, luma: &Luma, mode: &Mode) {
-        self.screen.draw(luma, mode);
+    pub fn draw(&mut self, luma: &Luma, mode: &Mode) -> anyhow::Result<()> {
+        self.terminal.draw(|f| {
+            // configure the surface so out drawing boxes are the right size
+            // if they changed since last render.
+            let Rect { width, height, .. } = f.size();
+            self.screen.configure_surface(width, height);
+
+            let (set, tab) = crate::util::get_set(&self.screen, luma);
+
+            if let Some((link, index)) = crate::util::get_link(&self.screen, luma) {
+                // this fixes a bug where when you delete the last entry you are hovering nothing
+                if index > set.len().saturating_sub(1) {
+                    self.screen.select_index(set.len() - 1)
+                }
+
+                let preview = crate::ui::render::preview(link);
+                f.render_widget(preview, self.screen.preview_pane);
+            }
+
+            let list = crate::ui::render::list(set);
+            f.render_stateful_widget(list, self.screen.side_pane, self.screen.list_state_mut());
+
+            let tabs = crate::ui::render::tabs(tab);
+            f.render_widget(tabs, self.screen.title_bar);
+
+            match mode {
+                Mode::Normal => {}
+                Mode::Prompt(data) => {
+                    let prompt_render = crate::ui::render::prompt(&data.prompt);
+                    let float_box = crate::ui::render::float_box(&data.prompt, width, height);
+
+                    f.render_widget(Clear, float_box);
+                    f.render_widget(prompt_render, float_box);
+                }
+                Mode::Insert(data) => {
+                    let prompt = data.prompts.get(data.index).unwrap();
+                    let buffer = data.buffers.get(data.index).unwrap();
+                    let msg = format!("{}: {}", prompt, buffer);
+                    let paragraph = crate::ui::render::input(&msg);
+
+                    let new_width = std::cmp::max(msg.len() as u16 + 2, width - 20);
+                    let new_height = 3;
+                    let x = (width - new_width) / 2;
+                    let y = (height - new_height) / 2;
+
+                    let render_box = Rect {
+                        x,
+                        y,
+                        width: new_width,
+                        height: new_height,
+                    };
+
+                    let clear_box = Rect {
+                        x: x - 2,
+                        y,
+                        width: new_width + 1,
+                        height: new_height + 1,
+                    };
+
+                    f.render_widget(Clear, clear_box);
+                    f.render_widget(paragraph, render_box);
+                }
+            }
+        })?;
+        Ok(())
     }
 
     pub fn deinit(&mut self) -> anyhow::Result<()> {
@@ -44,11 +122,11 @@ impl App {
         &mut self,
         event: Event,
         luma: &mut Luma,
-        mode: &Mode,
+        mode: &mut Mode,
     ) -> anyhow::Result<LumaMessage> {
         match event {
             Event::GainedFocus(_did) => anyhow::bail!("not implemented"),
-            Event::Input(key) => Ok(self.handle_key(key, luma, mode)),
+            Event::Input(key) => self.handle_key(key, luma, mode),
             Event::Click(_me) => anyhow::bail!("not implemented"),
             Event::Paste(paste) => Ok(self.handle_paste(mode, &paste)),
             Event::Resize(_x, _y) => anyhow::bail!("not implemented"),
@@ -56,96 +134,92 @@ impl App {
         }
     }
 
-    fn handle_paste(&self, mode: &Mode, paste: &str) -> LumaMessage {
+    fn handle_paste(&self, mode: &mut Mode, paste: &str) -> LumaMessage {
         match mode {
             Mode::Normal => LumaMessage::Nothing,
             Mode::Prompt { .. } => LumaMessage::Nothing,
-            Mode::Insert { index, buffers, .. } => {
-                buffers
-                    .borrow_mut()
-                    .get_mut(*index.borrow())
-                    .unwrap()
+            Mode::Insert(data) => {
+                data.buffers
+                    .get_mut(data.index)
+                    .expect("something has gone very wrong for you to get here")
                     .push_str(paste);
                 LumaMessage::Redraw
             }
         }
     }
 
-    fn handle_key(&mut self, key: Key, luma: &mut Luma, mode: &Mode) -> LumaMessage {
-        match mode {
-            Mode::Normal => self.handle_key_normal(key, luma),
-            Mode::Prompt { callback, .. } => self.handle_key_prompt(key, luma, callback.clone()),
-            Mode::Insert {
-                index,
-                buffers,
-                callback,
-                ..
-            } => {
-                self.handle_key_insert(key, luma, index.clone(), buffers.clone(), callback.clone())
-            }
-        }
-    }
-
-    fn handle_key_prompt(
+    fn handle_key(
         &mut self,
         key: Key,
-        state: &mut Luma,
-        callback: Rc<dyn Fn(&mut Luma)>,
-    ) -> LumaMessage {
-        match key {
-            Key::Char('y') | Key::Char('Y') => {
-                // This should never panic as this should only ever be able to
-                // be ran when it exists
-                callback(state);
-                LumaMessage::SetMode(Mode::Normal)
-            }
+        luma: &mut Luma,
+        mode: &mut Mode,
+    ) -> anyhow::Result<LumaMessage> {
+        match mode {
+            Mode::Normal => Ok(self.handle_key_normal(key, luma)),
+            Mode::Prompt(data) => Ok(self.handle_key_prompt(key, luma, data)),
+            Mode::Insert(data) => self.handle_key_insert(key, luma, data),
+        }
 
-            Key::Enter | Key::Char('n') | Key::Char('N') | Key::Esc | Key::Ctrl('c') => {
+        // if let Some(m) = res {
+        //     *mode = m;
+        // }
+        // LumaMessage::Nothing;
+    }
+
+    fn handle_key_prompt(&mut self, key: Key, state: &mut Luma, data: &PromptData) -> LumaMessage {
+        match key {
+            // the accept keys
+            Key::Char('y') | Key::Char('Y') => {
+                (data.accepted)(state);
                 LumaMessage::SetMode(Mode::Normal)
             }
+            // the decline keys
+            Key::Enter | Key::Char('n') | Key::Char('N') => {
+                (data.declined)(state);
+                LumaMessage::SetMode(Mode::Normal)
+            }
+            // the cancel keys
+            Key::Esc | Key::Ctrl('c') => LumaMessage::SetMode(Mode::Normal),
+            // everything else is ignored
             _ => LumaMessage::Nothing,
         }
     }
 
-    #[allow(clippy::type_complexity)]
     fn handle_key_insert(
         &mut self,
         key: Key,
         state: &mut Luma,
-        index: Rc<RefCell<usize>>,
-        buffers: Rc<RefCell<Vec<String>>>,
-        callback: Rc<dyn Fn(&mut Luma, Vec<String>)>,
-    ) -> LumaMessage {
+        data: &mut InsertData,
+    ) -> anyhow::Result<LumaMessage> {
         match key {
-            Key::Esc | Key::Ctrl('c') => LumaMessage::SetMode(Mode::Normal),
+            Key::Esc | Key::Ctrl('c') => Ok(LumaMessage::SetMode(Mode::Normal)),
             Key::Char(ch) => {
-                buffers
-                    .borrow_mut()
-                    .get_mut(*index.borrow())
-                    .unwrap()
+                data.buffers
+                    .get_mut(data.index)
+                    .ok_or(anyhow::anyhow!("failed to index buffers"))?
                     .push(ch);
-                LumaMessage::Redraw
+
+                Ok(LumaMessage::Redraw)
             }
-            Key::Enter => {
-                let len = buffers.borrow().len();
-                if *index.borrow() < len - 1 {
-                    *index.borrow_mut() += 1;
-                    LumaMessage::Redraw
-                } else {
-                    let buffers = buffers.take();
+            Key::Enter => match data.next_or_destructure() {
+                Some((buffers, callback)) => {
                     callback(state, buffers);
-                    LumaMessage::SetMode(Mode::Normal)
+                    Ok(LumaMessage::SetMode(Mode::Normal))
                 }
-            }
+                None => Ok(LumaMessage::Redraw),
+            },
             Key::Backspace => {
-                buffers.borrow_mut().get_mut(*index.borrow()).unwrap().pop();
-                LumaMessage::Redraw
+                data.buffers
+                    .get_mut(data.index)
+                    .ok_or(anyhow::anyhow!("failed to index buffers"))?
+                    .pop();
+                Ok(LumaMessage::Redraw)
             }
-            _ => LumaMessage::Nothing,
+            _ => Ok(LumaMessage::Nothing),
         }
     }
 
-    fn handle_key_normal(&mut self, key: Key, state: &mut Luma) -> LumaMessage {
+    fn handle_key_normal(&mut self, key: Key, luma: &mut Luma) -> LumaMessage {
         match key {
             Key::Char('q') | Key::Ctrl('c') => {
                 self.run = false;
@@ -155,7 +229,7 @@ impl App {
             Key::Left | Key::Char('h') => todo!(),
             Key::Down | Key::Char('j') => {
                 let tab = self.screen.get_selected_tab();
-                let len = state.set_mut(tab).len();
+                let len = luma.set_mut(tab).len();
                 self.screen.move_down(len);
                 LumaMessage::Redraw
             }
@@ -163,39 +237,41 @@ impl App {
                 self.screen.move_up();
                 LumaMessage::Redraw
             }
-            Key::Right | Key::Char('l') => todo!(),
+            Key::Right | Key::Char('l') => LumaMessage::Nothing,
 
             Key::Char('i') => {
-                let index = self.screen.get_selected_index();
+                // if nothing is selected then move on
+                let index = match self.screen.get_selected_index() {
+                    Some(i) => i,
+                    None => return LumaMessage::Nothing,
+                };
                 let tab = self.screen.get_selected_tab();
 
-                let callback = move |state: &mut Luma, mut buffers: Vec<String>| {
-                    let name = buffers.pop().unwrap();
-                    let link = buffers.pop().unwrap();
+                let callback = Rc::new(move |luma: &mut Luma, buffers: Vec<String>| {
+                    let link = &buffers[0];
+                    let name = &buffers[1];
 
-                    state.set_mut(tab).insert(index, Link::new(name, link));
-                };
+                    luma.set_mut(tab).insert(index, Link::new(name, link));
+                });
 
-                LumaMessage::SetMode(Mode::Insert {
-                    index: Rc::new(RefCell::new(0)),
-                    prompts: Rc::new(vec!["link".into(), "name".into()]),
-                    buffers: Rc::new(RefCell::new(vec![String::new(), String::new()])),
-                    callback: Rc::new(callback),
-                })
+                let prompts = ["link".into(), "name".into(), "".into(), "".into()];
+                LumaMessage::SetMode(Mode::Insert(InsertData::new(prompts, callback).unwrap()))
             }
 
             // TODO: move one down if not in a state where something can be opened
             Key::Enter => {
-                let set = self.screen.choose_set(state);
-                let link = set.get(self.screen.get_selected_index()).expect("find it");
-                std::process::Command::new(&state.meta.audio_open.cmd)
-                    .args(&state.meta.audio_open.args)
-                    // .args(vec![format!("--profile-directory={}", PROFILE_PATH)])
+                let (link, _) = match crate::util::get_link(&self.screen, luma) {
+                    Some(ret) => ret,
+                    None => return LumaMessage::Nothing,
+                };
+
+                // it isn't really out concern right now how the process went
+                _ = std::process::Command::new(&luma.meta.audio_open.cmd)
+                    .args(&luma.meta.audio_open.args)
                     .arg(&link.link)
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
-                    .spawn()
-                    .unwrap();
+                    .spawn();
 
                 // if anything this should be the open request
                 LumaMessage::Nothing
@@ -206,9 +282,8 @@ impl App {
                 LumaMessage::Redraw
             }
             Key::Char('G') => {
-                let tab = self.screen.get_selected_tab();
-                let len = state.set_mut(tab).len();
-                self.screen.select_index(len - 1);
+                let (set, _) = crate::util::get_set(&self.screen, luma);
+                self.screen.select_index(set.len() - 1);
                 LumaMessage::Redraw
             }
 
@@ -216,25 +291,32 @@ impl App {
             // where it wait till the user answers and class the call back on
             // a yes
             Key::Char('D') | Key::Backspace => {
-                let index = self.screen.get_selected_index();
+                // if nothing is hovered then just do nothing
+                let (link, index) = match crate::util::get_link(&self.screen, luma) {
+                    Some(ret) => ret,
+                    None => return LumaMessage::Nothing,
+                };
+                let name = link.name.clone();
                 let tab = self.screen.get_selected_tab();
 
-                let name = state.set(tab).get(index).unwrap().name.clone();
-
-                let delete = move |state: &mut Luma| {
-                    state.set_mut(tab).remove(index);
+                let delete = move |luma: &mut Luma| {
+                    luma.set_mut(tab).remove(index);
                 };
-                LumaMessage::SetMode(Mode::Prompt {
-                    msg: format!("Remove audio \"{}\"? (y/N)", name),
-                    callback: Rc::new(delete),
-                })
+                let nothing = |_luma: &mut Luma| {};
+                LumaMessage::SetMode(Mode::Prompt(crate::mode::PromptData {
+                    prompt: format!("Remove audio \"{}\"? (y/N)", name).into_boxed_str(),
+                    accepted: Rc::new(delete),
+                    declined: Rc::new(nothing),
+                }))
             }
 
             Key::Ctrl('j') => {
-                let index = self.screen.get_selected_index();
-                let tab = self.screen.get_selected_tab();
+                let index = match self.screen.get_selected_index() {
+                    Some(i) => i,
+                    None => return LumaMessage::Nothing,
+                };
 
-                let set = state.set_mut(tab);
+                let (set, _) = crate::util::get_set_mut(&self.screen, luma);
 
                 if index > 0 && index < set.len() - 1 {
                     set.swap(index, index + 1)
@@ -243,10 +325,11 @@ impl App {
                 LumaMessage::Redraw
             }
             Key::Ctrl('k') => {
-                let index = self.screen.get_selected_index();
-                let tab = self.screen.get_selected_tab();
-
-                let set = state.set_mut(tab);
+                let index = match self.screen.get_selected_index() {
+                    Some(i) => i,
+                    None => return LumaMessage::Nothing,
+                };
+                let (set, _) = crate::util::get_set_mut(&self.screen, luma);
 
                 if index < set.len() - 1 {
                     set.swap(index, index - 1)
@@ -257,11 +340,11 @@ impl App {
             }
 
             Key::Char('1') => {
-                self.screen.select_tab(0);
+                self.screen.select_tab(ScreenType::Audio);
                 LumaMessage::Redraw
             }
             Key::Char('2') => {
-                self.screen.select_tab(1);
+                self.screen.select_tab(ScreenType::Reading);
                 LumaMessage::Redraw
             }
 
