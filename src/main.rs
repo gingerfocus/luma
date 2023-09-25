@@ -1,22 +1,15 @@
-mod app;
-mod cli;
-mod event;
-mod luma;
-mod mode;
-mod prelude;
-mod state;
-mod ui;
-mod util;
-
-// mod vault;
-
-pub extern crate serde_yaml as yaml;
-
-use clap::Parser;
-
-use crate::ui::screen::Screen;
+pub mod app;
+pub mod cli;
+pub mod event;
+pub mod luma;
+pub mod mode;
+pub mod prelude;
+pub mod state;
+pub mod ui;
+pub mod util;
 
 use crate::prelude::*;
+use clap::Parser;
 
 pub enum LumaMessage {
     Redraw,
@@ -25,7 +18,7 @@ pub enum LumaMessage {
     Nothing,
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<()> {
     let args = crate::cli::Args::parse();
 
     // let log_file = std::fs::File::create("./mumi.log").unwrap();
@@ -64,20 +57,18 @@ fn main() -> anyhow::Result<()> {
     app.deinit()?;
     // --------------------------------------------
 
-    println!("Save file? (y/N)");
-    let mut response = String::new();
-    io::stdin().read_line(&mut response)?;
+    crossterm::execute!(io::stdout(), crossterm::cursor::Show)?;
+    let file = requestty::Question::input("file")
+        .message("Save as")
+        .default(args.file.to_str().unwrap())
+        .build();
+    let path = match requestty::prompt_one(file) {
+        Ok(requestty::Answer::String(s)) => s,
+        _ => unreachable!(),
+    };
 
-    if response.trim().starts_with('y') {
-        println!("Save as? (Default: {})", args.file.to_str().unwrap());
-        let mut save_file = String::new();
-        io::stdin().read_line(&mut save_file)?;
-        // remove new line from reading stding
-        let mut save_file = std::path::PathBuf::from(save_file.trim().to_string());
-        if !save_file.exists() {
-            save_file = args.file;
-        }
-        fs::write(save_file, yaml::to_string(&luma)?.as_bytes())?;
+    if let Ok(f) = fs::File::create(path) {
+        yaml::to_writer(f, &luma).unwrap();
     }
 
     Ok(())

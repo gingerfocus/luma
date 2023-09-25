@@ -92,8 +92,12 @@ mod test {
     #[test]
     fn test_return_buffer_validity() {
         let callback = Rc::new(|_luma: &mut Luma, buffers: Vec<String>| {
+            let mut buffers = buffers;
             assert!(buffers.len() == 2);
-            assert!(buffers.get(3) == None);
+            // we did nothing to the data so empty response is expected
+            assert!(buffers.pop() == Some("".into()));
+            buffers.pop();
+            assert!(buffers.pop() == None);
         });
 
         let prompts = ["first".into(), "second".into(), "".into(), "".into()];
@@ -102,14 +106,16 @@ mod test {
         assert!(data.is_ok());
         let mut data = data.unwrap();
 
-        dbg!(data.num_prompts);
         assert!(data.next_or_destructure().is_none());
 
-        if let Some((buffers, callback)) = data.next_or_destructure() {
-            let mut luma = Luma::default();
-            callback(&mut luma, buffers);
-        } else {
+        let Some((buffers, callback)) = data.next_or_destructure() else {
             assert!(false);
-        }
+
+            // this should never run
+            loop {}
+        };
+
+        let mut luma = Luma::default();
+        callback(&mut luma, buffers);
     }
 }

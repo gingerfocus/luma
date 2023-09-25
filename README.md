@@ -12,6 +12,11 @@ just build
 just publish
 ```
 
+## Future
+A hook system where you can register a function for an event and then it gets
+ran when it triggers. These events can be the next key press of something or
+entering or leaving a mode.
+
 ## Development
 
 I have lots of ideas for what this could be in the thing and here they are

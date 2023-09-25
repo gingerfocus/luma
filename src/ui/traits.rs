@@ -1,5 +1,6 @@
 // use tui::prelude::*;
 use tui::{
+    style::Style,
     text::{Line, Span},
     widgets::*,
 };
@@ -39,5 +40,6 @@ pub trait AsListItem {
 impl AsListItem for Link {
     fn as_list_item(&self) -> ListItem {
         ListItem::new(Line::from(vec![Span::raw(self.name.clone())]))
+            .style(Style::new().fg(self.color.unwrap_or_default()))
     }
 }

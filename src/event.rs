@@ -9,7 +9,7 @@ pub enum Event {
     /// An input event occurred.
     Input(Key),
     /// When the mouse is clicked
-    Click(MouseEvent),
+    Click(Mouse),
     /// when the terminal is resized
     Resize(u16, u16),
     /// when some text is put into the terminal
@@ -21,13 +21,13 @@ pub enum Event {
     Tick,
 }
 
-impl From<crossterm::event::Event> for Event {
+impl From<CrossEvent> for Event {
     fn from(value: crossterm::event::Event) -> Self {
         match value {
             CrossEvent::FocusGained => Event::GainedFocus(true),
             CrossEvent::FocusLost => Event::GainedFocus(false),
             CrossEvent::Key(ke) => Event::Input(ke.into()),
-            CrossEvent::Mouse(me) => Event::Click(me), // TODO: make a custom mouse event
+            CrossEvent::Mouse(me) => Event::Click(me.into()),
             CrossEvent::Paste(s) => Event::Paste(s),
             CrossEvent::Resize(x, y) => Event::Resize(x, y),
         }
@@ -181,6 +181,53 @@ impl From<event::KeyEvent> for Key {
                 ..
             } => Key::Char(c),
             _ => Key::Unknown,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Mouse {
+    pub pos: (u16, u16),
+    pub kind: MouseKind,
+}
+
+#[derive(Debug)]
+pub enum MouseKind {
+    LeftClick,
+    RightClick,
+    MiddleClick,
+    Drag,
+    Scroll(i8),
+    Nothing,
+}
+
+impl From<MouseEvent> for Mouse {
+    fn from(value: MouseEvent) -> Self {
+        let MouseEvent {
+            kind, column, row, ..
+        } = value;
+
+        let kind = match kind {
+            event::MouseEventKind::Down(m) => match m {
+                event::MouseButton::Left => MouseKind::LeftClick,
+                event::MouseButton::Right => MouseKind::RightClick,
+                event::MouseButton::Middle => MouseKind::MiddleClick,
+            },
+            event::MouseEventKind::ScrollDown => MouseKind::Scroll(1),
+            event::MouseEventKind::ScrollUp => MouseKind::Scroll(-1),
+            event::MouseEventKind::Drag(event::MouseButton::Left) => MouseKind::Drag,
+
+            // event::MouseEventKind::Up(_) => MouseKind::Nothing,
+            // event::MouseEventKind::Drag(_) => MouseKind::Nothing,
+            // event::MouseEventKind::Moved => MouseKind::Nothing,
+            // event::MouseEventKind::ScrollLeft => MouseKind::Nothing,
+            // event::MouseEventKind::ScrollRight => MouseKind::Nothing,
+            _ => MouseKind::Nothing,
+        };
+
+        Self {
+            pos: (row, column),
+            kind,
         }
     }
 }

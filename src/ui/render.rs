@@ -7,7 +7,7 @@ use crate::prelude::*;
 use tui::{prelude::*, widgets::*};
 
 pub fn float_box(msg: &str, width: u16, height: u16) -> Rect {
-    let new_width = msg.len() as u16 + 2;
+    let new_width = msg.lines().map(|l| l.len()).max().unwrap() as u16 + 2;
     let new_height = msg.lines().count() as u16 + 2;
 
     let x = (width - new_width) / 2;
@@ -33,17 +33,18 @@ pub fn list(set: &[Link]) -> List<'_> {
     .block(Block::default().title("links").borders(Borders::all()))
 }
 
-pub fn tabs(selected: ScreenType) -> Tabs<'static> {
+pub fn tabs(names: Vec<&String>, selected: usize) -> Tabs<'static> {
     // NOTE: most of this is just constant so try using a lazy static
 
     Tabs::new(
-        ["Audios", "Reading"]
+        names
             .iter()
+            .cloned()
             .cloned()
             .map(Line::from)
             .collect::<Vec<Line<'_>>>(),
     )
-    .select(selected.into())
+    .select(selected)
     .style(Style::default().fg(Color::White))
     .highlight_style(Style::default().fg(Color::Yellow))
     .divider(symbols::DOT)
@@ -58,20 +59,20 @@ pub fn preview(l: &Link) -> Paragraph<'_> {
 }
 
 pub fn prompt(msg: &str) -> Paragraph<'_> {
-    Paragraph::new(msg.clone())
+    Paragraph::new(msg)
         .block(
             Block::default()
                 .title("Prompt")
                 .borders(Borders::all())
                 .border_type(BorderType::Rounded),
         )
-        .alignment(Alignment::Center)
+        .alignment(Alignment::Left)
 }
 
 pub fn input(msg: &str) -> Paragraph<'_> {
-    Paragraph::new(msg.clone()).block(
+    Paragraph::new(msg).block(
         Block::default()
-            .title("Prompt")
+            .title("Input")
             .borders(Borders::all())
             .border_type(BorderType::Rounded),
     )

@@ -13,30 +13,30 @@ pub struct Screen {
     pub side_pane: Rect,
     pub preview_pane: Rect,
 
-    active: ScreenState,
+    state: ScreenState,
+    // cache: Components
 }
 
 #[derive(Default)]
 struct ScreenState {
+    pub selected_tab: IndexedPair,
+
+    active: ScreenStatefulData,
+}
+
+#[derive(Default)]
+pub struct IndexedPair {
+    pub name: String,
+    pub index: usize,
+}
+
+#[derive(Default)]
+struct ScreenStatefulData {
     list: ListState,
-    tab: ScreenType,
 }
-
-#[derive(Default, Clone, Copy)]
-pub enum ScreenType {
-    #[default]
-    Audio,
-    Reading, // StarterLinks,
-}
-
-impl From<ScreenType> for usize {
-    fn from(value: ScreenType) -> Self {
-        match value {
-            ScreenType::Audio => 0,
-            ScreenType::Reading => 1,
-        }
-    }
-}
+// struct Components {
+//     list: List
+// }
 
 impl Screen {
     pub fn init(&mut self) -> anyhow::Result<()> {
@@ -44,7 +44,7 @@ impl Screen {
             crossterm::terminal::enable_raw_mode().unwrap();
             crossterm::execute!(io::stdout(), crossterm::terminal::EnterAlternateScreen)?;
 
-            self.active.list.select(Some(0));
+            self.state.active.list.select(Some(0));
 
             self.is_valid = true;
         }
@@ -72,48 +72,46 @@ impl Screen {
         }
     }
 
-    /// Moves the cursor up 1 space respecting the given maximum for its index
-    pub fn move_down(&mut self, max: usize) {
-        let select = match self.active.list.selected() {
-            None => 0,
-            Some(i) if i >= max => i,
-            Some(i) => i + 1,
+    pub fn move_cursor(&mut self, step: i8) {
+        let select = match step {
+            0 => return,
+            x if x > 0 => match self.state.active.list.selected() {
+                None => 0,
+                // x is gaurded against being negative so casts always sucessed
+                Some(i) => i + x as usize,
+            },
+            x => match self.state.active.list.selected() {
+                None => 0,
+                // x is negative is the inverse will always cast sucessfully
+                Some(i) => i.saturating_sub(-x as usize),
+            },
         };
-        self.active.list.select(Some(select));
+
+        self.state.active.list.select(Some(select));
     }
 
-    /// Moves the cursor up 1 space.
-    pub fn move_up(&mut self) {
-        let select = match self.active.list.selected() {
-            None => 0,
-            Some(i) if i == 0 => 0,
-            Some(i) => i - 1,
-        };
-        self.active.list.select(Some(select));
-    }
-
-    pub fn select_tab(&mut self, tab: ScreenType) {
-        self.active.tab = tab;
+    pub fn select_tab(&mut self, index: IndexedPair) {
+        self.state.selected_tab = index;
         // for now the best that can be done is to select none but Some(0)
         // could be selected if the luma was passed in
-        self.active.list.select(None);
+        self.state.active.list.select(None);
     }
 
-    pub fn get_selected_tab(&self) -> ScreenType {
-        self.active.tab
+    pub fn get_selected_tab_index(&self) -> usize {
+        self.state.selected_tab.index
     }
 
     pub fn select_index(&mut self, index: usize) {
         // TODO: Bounds checks
-        self.active.list.select(Some(index));
+        self.state.active.list.select(Some(index));
     }
 
     pub fn get_selected_index(&self) -> Option<usize> {
-        self.active.list.selected()
+        self.state.active.list.selected()
     }
 
     pub fn list_state_mut(&mut self) -> &mut ListState {
-        &mut self.active.list
+        &mut self.state.active.list
     }
 
     pub fn deinit(&mut self) -> anyhow::Result<()> {
@@ -135,12 +133,12 @@ mod test {
         let mut screen = super::Screen::default();
 
         screen.select_index(8);
-        screen.move_down(8);
+        screen.move_cursor(4);
 
-        assert!(screen.get_selected_index() == Some(8));
+        assert!(screen.get_selected_index() == Some(12));
 
-        screen.select_index(0);
-        screen.move_up();
+        screen.select_index(1);
+        screen.move_cursor(-3);
 
         assert!(screen.get_selected_index() == Some(0));
     }
