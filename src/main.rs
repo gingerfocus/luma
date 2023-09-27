@@ -17,14 +17,13 @@ pub mod ui;
 use crate::prelude::*;
 use clap::Parser;
 use input::Handler;
-use std::cell::LazyCell;
 
-
-
-const AUDIO_OPENER: LazyCell<luma::OpenCommand> = LazyCell::new(|| luma::OpenCommand {
-    cmd: "firefox",
-    args: ["--private-window"].into(),
-});
+lazy_static::lazy_static!(
+    static ref AUDIO_OPENER: luma::OpenCommand = luma::OpenCommand {
+        cmd: "firefox",
+        args: ["--private-window"].into(),
+    };
+);
 // const LINK_OPENER: LazyCell<luma::OpenCommand> = LazyCell::new(|| luma::OpenCommand {
 //     cmd: "firefox",
 //     args: ["--private-window"].into(),
@@ -37,7 +36,7 @@ const AUDIO_OPENER: LazyCell<luma::OpenCommand> = LazyCell::new(|| luma::OpenCom
 
 pub enum LumaMessage {
     Redraw,
-    SetMode(Mode),
+    SetMode(Box<Mode>),
     Exit,
 }
 
@@ -54,7 +53,7 @@ fn main() -> Result<()> {
     log::debug!("log init");
 
     // let mut state = State::default();
-    let mut mode = Mode::default();
+    let mut mode = Box::<Mode>::default();
     let mut luma: Luma = json::from_str(&fs::read_to_string(&args.file)?)?;
     // let mut client = mpd::Client::new();
 
@@ -73,7 +72,7 @@ fn main() -> Result<()> {
     while app.run {
         let event = read_event();
         log::trace!("read key event: {:?}", event);
-        if let Some(req) = input::handle(event, &mut screen, &mut luma, &mut mode, &mut handler) {
+        if let Some(req) = input::handle(event, &mut screen, &mut luma, &mut mode, &handler) {
             match req {
                 LumaMessage::Redraw => {
                     log::trace!("redrawing");

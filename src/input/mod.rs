@@ -16,7 +16,7 @@ pub fn handle(
     screen: &mut Screen,
     luma: &mut Luma,
     mode: &mut Mode,
-    handler: &mut Handler,
+    handler: &Handler,
 ) -> Option<LumaMessage> {
     match event {
         Event::GainedFocus(_did) => None,

@@ -1,5 +1,3 @@
-use anyhow::Ok;
-
 use crate::prelude::*;
 use std::rc::Rc;
 
@@ -24,21 +22,26 @@ pub struct PromptData {
 pub struct InsertData {
     pub index: usize,
     pub num_prompts: usize,
-    pub prompts: [Box<str>; 4],
+    pub prompts: [String; 4],
     pub buffers: [String; 4],
     pub callback: Rc<ReadStringsFunction>,
 }
 
 impl InsertData {
-    pub fn new(prompts: [Box<str>; 4], callback: Rc<ReadStringsFunction>) -> anyhow::Result<Self> {
-        let num_prompts = prompts
-            .iter()
-            .enumerate()
-            .find(|(_i, p)| p.is_empty())
-            .map(|(i, _p)| i)
-            .unwrap_or(prompts.len());
+    pub fn new(prompts: [String; 4], callback: Rc<ReadStringsFunction>) -> Result<Self> {
+        Self::new_with_buffers(
+            prompts,
+            [String::new(), String::new(), String::new(), String::new()],
+            callback,
+        )
+    }
 
-        let buffers = [String::new(), String::new(), String::new(), String::new()];
+    pub fn new_with_buffers(
+        prompts: [String; 4],
+        buffers: [String; 4],
+        callback: Rc<ReadStringsFunction>,
+    ) -> Result<Self> {
+        let num_prompts = prompts.iter().filter(|p| !p.is_empty()).count();
         Ok(Self {
             index: 0,
             num_prompts,

@@ -17,7 +17,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new() -> Result<Self> {
         let terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
 
         Ok(Self {
@@ -27,7 +27,7 @@ impl App {
         })
     }
 
-    pub fn init(&mut self) -> anyhow::Result<()> {
+    pub fn init(&mut self) -> Result<()> {
         let Rect { width, height, .. } = self.terminal.size()?;
         self.screen.configure_surface(width, height);
         self.screen.init()?;
@@ -47,6 +47,8 @@ impl App {
             let gread = STATE.read().unwrap();
             let tab = gread.selected_tab;
             let index = gread.selected_index;
+            drop(gread);
+
             let set = luma.get_index(tab).expect("A valid tab is not selected");
 
             if let Some(link) = set.1.get(index) {
@@ -82,6 +84,7 @@ impl App {
                     let prompt = data.prompts.get(data.index).unwrap();
                     let buffer = data.buffers.get(data.index).unwrap();
                     let msg = format!("{}: {}", prompt, buffer);
+                    let msglen = msg.len();
                     let paragraph = crate::ui::render::input(&msg);
 
                     let new_width = std::cmp::max(msg.len() as u16 + 2, width - 20);
@@ -105,6 +108,7 @@ impl App {
 
                     f.render_widget(Clear, clear_box);
                     f.render_widget(paragraph, render_box);
+                    f.set_cursor(render_box.x + 1 + msglen as u16, render_box.y + 1);
                 }
             }
         })?;
@@ -112,7 +116,7 @@ impl App {
         Ok(())
     }
 
-    pub fn deinit(&mut self) -> anyhow::Result<()> {
+    pub fn deinit(&mut self) -> Result<()> {
         self.screen.deinit()?;
 
         self.run = false;

@@ -24,6 +24,7 @@ pub fn add_all(h: &mut Handler) {
     h.add_normal_handlers([Key::Char('q'), Key::Ctrl('c')], exit);
 
     h.add_normal_handler(Key::Char('i'), go_insert);
+    h.add_normal_handler(Key::Char('e'), go_edit);
 
     h.add_normal_handlers([Key::Down, Key::Char('j')], move_down);
     h.add_normal_handlers([Key::Up, Key::Char('k')], move_up);
@@ -46,15 +47,54 @@ fn nothing(_state: &mut Luma) -> Option<LumaMessage> {
     None
 }
 
-fn go_insert(_state: &mut Luma) -> Option<LumaMessage> {
+fn go_edit(luma: &mut Luma) -> Option<LumaMessage> {
     let read = STATE.read().unwrap();
     let tab = read.selected_tab;
-    let index = read.selected_tab;
+    let index = read.selected_index;
     drop(read);
 
-    let callback = Rc::new(move |luma: &mut Luma, buffers: Vec<String>| {
-        let link = &buffers[0];
-        let name = &buffers[1];
+    let link = luma.get_index(tab).unwrap().1.get(index)?;
+
+    let callback = Rc::new(move |luma: &mut Luma, mut buffers: Vec<String>| {
+        let file = buffers.pop().unwrap(); // index 3
+        let artist = buffers.pop().unwrap(); // index 2
+        let name = buffers.pop().unwrap(); // index 1
+        let link = buffers.pop().unwrap(); // index 0
+
+        let l = luma.get_index_mut(tab).unwrap().1.get_mut(index).unwrap();
+        *l = Link {
+            name: name.clone(),
+            link: link.clone(),
+            file: Some(file.clone()),
+            desc: None,
+            artist: Some(artist.clone()),
+            color: None,
+        };
+    });
+
+    let prompts = ["link".into(), "name".into(), "artist".into(), "file".into()];
+
+    let buffers = [
+        link.link.clone(),
+        link.name.clone(),
+        link.artist.clone().unwrap_or("".into()),
+        link.file.clone().unwrap_or("".into()),
+    ];
+
+    Some(LumaMessage::SetMode(Box::new(Mode::Insert(
+        InsertData::new_with_buffers(prompts, buffers, callback).unwrap(),
+    ))))
+}
+
+fn go_insert(_luma: &mut Luma) -> Option<LumaMessage> {
+    let read = STATE.read().unwrap();
+    let tab = read.selected_tab;
+    let index = read.selected_index;
+    drop(read);
+
+    let callback = Rc::new(move |luma: &mut Luma, mut buffers: Vec<String>| {
+        let name = buffers.pop().unwrap(); // index 1
+        let link = buffers.pop().unwrap(); // index 0
 
         luma.get_index_mut(tab)
             .unwrap()
@@ -63,16 +103,17 @@ fn go_insert(_state: &mut Luma) -> Option<LumaMessage> {
     });
 
     let prompts = ["link".into(), "name".into(), "".into(), "".into()];
-    Some(LumaMessage::SetMode(Mode::Insert(
+
+    Some(LumaMessage::SetMode(Box::new(Mode::Insert(
         InsertData::new(prompts, callback).unwrap(),
-    )))
+    ))))
 }
 
 fn move_down(state: &mut Luma) -> Option<LumaMessage> {
     let mut gwrite = STATE.write().unwrap();
 
     let max_len = state.get_index(gwrite.selected_tab).unwrap().1.len();
-    if gwrite.selected_index < max_len {
+    if gwrite.selected_index < max_len - 1 {
         gwrite.selected_index += 1;
     }
     Some(LumaMessage::Redraw)
@@ -113,7 +154,7 @@ fn go_bottom(luma: &mut Luma) -> Option<LumaMessage> {
     Some(LumaMessage::Redraw)
 }
 
-const HELP_TEXT: &'static str = "\
+const HELP_TEXT: &str = "\
 j k     -       Move Up/Down\n\
 g G     -       Go Top/Bottom\n\
 Enter   -       Open Link in Browser\n\
@@ -125,13 +166,13 @@ q       -       Exit\
 
 fn show_help(_luma: &mut Luma) -> Option<LumaMessage> {
     let nothing = |_luma: &mut Luma| {};
-    Some(LumaMessage::SetMode(Mode::Prompt(
+    Some(LumaMessage::SetMode(Box::new(Mode::Prompt(
         crate::mode::PromptData {
             prompt: HELP_TEXT.to_string().into_boxed_str(),
             accepted: Rc::new(nothing),
             declined: Rc::new(nothing),
         },
-    )))
+    ))))
 }
 
 fn delete(luma: &mut Luma) -> Option<LumaMessage> {
@@ -149,13 +190,13 @@ fn delete(luma: &mut Luma) -> Option<LumaMessage> {
     };
     let nothing = |_luma: &mut Luma| {};
 
-    Some(LumaMessage::SetMode(Mode::Prompt(
+    Some(LumaMessage::SetMode(Box::new(Mode::Prompt(
         crate::mode::PromptData {
             prompt: format!("Remove audio \"{}\"? (y/N)", name).into_boxed_str(),
             accepted: Rc::new(delete),
             declined: Rc::new(nothing),
         },
-    )))
+    ))))
 }
 
 //         Key::Left | Key::Char('h') => todo!(),

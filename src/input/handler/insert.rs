@@ -9,19 +9,21 @@ pub fn add_all(h: &mut Handler) {
 }
 
 fn delete(_state: &mut Luma, data: &mut InsertData) -> Option<LumaMessage> {
-    data.buffers
-        .get_mut(data.index)?
-        .pop();
+    data.buffers.get_mut(data.index)?.pop();
     Some(LumaMessage::Redraw)
 }
 
 fn complete(state: &mut Luma, data: &mut InsertData) -> Option<LumaMessage> {
-    Some(data.next_or_destructure().and_then(|(buffers, callback)| {
-            callback(state, buffers);
-            Some(LumaMessage::SetMode(Mode::Normal))
-    }).unwrap_or(LumaMessage::Redraw))
+    Some(
+        data.next_or_destructure()
+            .map(|(buffers, callback)| {
+                callback(state, buffers);
+                LumaMessage::SetMode(Box::new(Mode::Normal))
+            })
+            .unwrap_or(LumaMessage::Redraw),
+    )
 }
 
 fn cancel(_state: &mut Luma, _data: &mut InsertData) -> Option<LumaMessage> {
-    Some(LumaMessage::SetMode(Mode::Normal))
+    Some(LumaMessage::SetMode(Box::new(Mode::Normal)))
 }

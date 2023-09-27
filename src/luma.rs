@@ -13,7 +13,7 @@ impl OpenCommand {
     pub fn open(&self, name: &str) {
         // it isn't really out concern right now how the process went
         _ = std::process::Command::new(self.cmd)
-            .args(self.args.into_iter())
+            .args(self.args.iter())
             .arg(name)
             // .stdout(Stdio::piped())
             // .stderr(Stdio::piped())

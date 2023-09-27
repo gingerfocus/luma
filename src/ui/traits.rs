@@ -15,7 +15,7 @@ impl AsParagraph for Link {
     fn as_paragraph(&self) -> tui::widgets::Paragraph {
         let name = Some(format!("Name: {}", self.name));
         let link = Some(format!("Link: {}", self.link));
-        let file = self.artist.as_ref().map(|f| format!("File: {}", f));
+        let file = self.file.as_ref().map(|f| format!("File: {}", f));
         let artist = self.artist.as_ref().map(|a| format!("Artist: {}", a));
         let desc = self.desc.as_ref().map(|d| format!("Description: {}", d));
 

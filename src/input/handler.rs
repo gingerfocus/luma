@@ -79,7 +79,7 @@ impl Handler {
 }
 
 fn write_char_to_insert_data(k: Key, data: &mut InsertData) -> Option<LumaMessage> {
-    if let Key::Ctrl(c) = k {
+    if let Key::Char(c) = k {
         data.buffers.get_mut(data.index)?.push(c);
         Some(LumaMessage::Redraw)
     } else {

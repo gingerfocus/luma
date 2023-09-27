@@ -13,14 +13,14 @@ pub fn add_all(h: &mut Handler) {
 
 fn accept(state: &mut Luma, pd: &mut PromptData) -> Option<LumaMessage> {
     (pd.accepted)(state);
-    Some(LumaMessage::SetMode(Mode::Normal))
+    Some(LumaMessage::SetMode(Box::new(Mode::Normal)))
 }
 
 fn decline(state: &mut Luma, pd: &mut PromptData) -> Option<LumaMessage> {
     (pd.declined)(state);
-    Some(LumaMessage::SetMode(Mode::Normal))
+    Some(LumaMessage::SetMode(Box::new(Mode::Normal)))
 }
 
 fn cancel(_state: &mut Luma, _pd: &mut PromptData) -> Option<LumaMessage> {
-    Some(LumaMessage::SetMode(Mode::Normal))
+    Some(LumaMessage::SetMode(Box::new(Mode::Normal)))
 }

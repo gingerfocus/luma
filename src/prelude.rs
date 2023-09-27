@@ -30,6 +30,7 @@ pub type Result<T> = core::result::Result<T, LumaError>;
 pub enum LumaError {
     #[error("File io failure")]
     Io(#[from] io::Error),
+
     #[error("Generic error: `{0}`")]
     Generic(String),
 
@@ -39,14 +40,12 @@ pub enum LumaError {
     #[error("Encoder error: {0}")]
     Encoder(#[from] vorbis_rs::VorbisError),
 
-    #[error(transparent)]
-    Static(#[from] anyhow::Error),
-
     // #[error("invalid header (expected {expected:?}, found {found:?})")]
     // InvalidHeader {
     //     expected: String,
     //     found: String,
     // },
+
     #[error("Unknown error")]
     Unknown,
     // Mpd,

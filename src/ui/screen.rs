@@ -47,7 +47,7 @@ impl Screen {
         }
     }
 
-    pub fn deinit(&mut self) -> anyhow::Result<()> {
+    pub fn deinit(&mut self) -> Result<()> {
         if self.is_valid {
             // restore terminal, results are ignored beacuse we are leaving anyway
             crossterm::terminal::disable_raw_mode()?;
