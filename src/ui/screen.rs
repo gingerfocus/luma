@@ -1,8 +1,7 @@
 use std::io;
 
-// use crate::prelude::*;
+use crate::prelude::*;
 use tui::prelude::*;
-use tui::widgets::*;
 
 #[derive(Default)]
 pub struct Screen {
@@ -12,39 +11,15 @@ pub struct Screen {
     pub title_bar: Rect,
     pub side_pane: Rect,
     pub preview_pane: Rect,
-
-    state: ScreenState,
-    // cache: Components
 }
 
-#[derive(Default)]
-struct ScreenState {
-    pub selected_tab: IndexedPair,
-
-    active: ScreenStatefulData,
-}
-
-#[derive(Default)]
-pub struct IndexedPair {
-    pub name: String,
-    pub index: usize,
-}
-
-#[derive(Default)]
-struct ScreenStatefulData {
-    list: ListState,
-}
-// struct Components {
-//     list: List
-// }
+// ListState
 
 impl Screen {
-    pub fn init(&mut self) -> anyhow::Result<()> {
+    pub fn init(&mut self) -> Result<()> {
         if !self.is_valid {
             crossterm::terminal::enable_raw_mode().unwrap();
             crossterm::execute!(io::stdout(), crossterm::terminal::EnterAlternateScreen)?;
-
-            self.state.active.list.select(Some(0));
 
             self.is_valid = true;
         }
@@ -72,48 +47,6 @@ impl Screen {
         }
     }
 
-    pub fn move_cursor(&mut self, step: i8) {
-        let select = match step {
-            0 => return,
-            x if x > 0 => match self.state.active.list.selected() {
-                None => 0,
-                // x is gaurded against being negative so casts always sucessed
-                Some(i) => i + x as usize,
-            },
-            x => match self.state.active.list.selected() {
-                None => 0,
-                // x is negative is the inverse will always cast sucessfully
-                Some(i) => i.saturating_sub(-x as usize),
-            },
-        };
-
-        self.state.active.list.select(Some(select));
-    }
-
-    pub fn select_tab(&mut self, index: IndexedPair) {
-        self.state.selected_tab = index;
-        // for now the best that can be done is to select none but Some(0)
-        // could be selected if the luma was passed in
-        self.state.active.list.select(None);
-    }
-
-    pub fn get_selected_tab_index(&self) -> usize {
-        self.state.selected_tab.index
-    }
-
-    pub fn select_index(&mut self, index: usize) {
-        // TODO: Bounds checks
-        self.state.active.list.select(Some(index));
-    }
-
-    pub fn get_selected_index(&self) -> Option<usize> {
-        self.state.active.list.selected()
-    }
-
-    pub fn list_state_mut(&mut self) -> &mut ListState {
-        &mut self.state.active.list
-    }
-
     pub fn deinit(&mut self) -> anyhow::Result<()> {
         if self.is_valid {
             // restore terminal, results are ignored beacuse we are leaving anyway
@@ -123,23 +56,5 @@ impl Screen {
             self.is_valid = false;
         }
         Ok(())
-    }
-}
-
-mod test {
-
-    #[test]
-    fn check_index_overflows() {
-        let mut screen = super::Screen::default();
-
-        screen.select_index(8);
-        screen.move_cursor(4);
-
-        assert!(screen.get_selected_index() == Some(12));
-
-        screen.select_index(1);
-        screen.move_cursor(-3);
-
-        assert!(screen.get_selected_index() == Some(0));
     }
 }

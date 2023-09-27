@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-const ABOUT: &str = "tesing this about thing";
+const ABOUT: &str = "Tesing this about thing";
 
 #[derive(Parser, Debug)]
 #[clap(name = "Luma", author, version, about)]

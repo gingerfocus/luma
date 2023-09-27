@@ -1,34 +1,61 @@
+//! A Program to unite the web and filesystem
+
+#![feature(lazy_cell)]
+// #![allow(unused)]
+#![warn(unused_crate_dependencies)]
+// #![warn(missing_docs)]
+
 pub mod app;
+pub mod aud;
 pub mod cli;
-pub mod event;
+mod input;
 pub mod luma;
 pub mod mode;
 pub mod prelude;
-pub mod state;
 pub mod ui;
-pub mod util;
 
 use crate::prelude::*;
 use clap::Parser;
+use input::Handler;
+use std::cell::LazyCell;
+
+
+
+const AUDIO_OPENER: LazyCell<luma::OpenCommand> = LazyCell::new(|| luma::OpenCommand {
+    cmd: "firefox",
+    args: ["--private-window"].into(),
+});
+// const LINK_OPENER: LazyCell<luma::OpenCommand> = LazyCell::new(|| luma::OpenCommand {
+//     cmd: "firefox",
+//     args: ["--private-window"].into(),
+// });
+// const TEXT_OPENER: LazyCell<luma::OpenCommand> = LazyCell::new(|| luma::OpenCommand {
+//     cmd: "firefox",
+//     args: ["--private-window"].into(),
+// });
+// const DOWNLOAD_DIR: &'static str = "~/dl";
 
 pub enum LumaMessage {
     Redraw,
     SetMode(Mode),
     Exit,
-    Nothing,
 }
 
 fn main() -> Result<()> {
     let args = crate::cli::Args::parse();
 
-    // let log_file = std::fs::File::create("./mumi.log").unwrap();
-    // env_logger::builder()
-    //     .target(env_logger::Target::Pipe(Box::new(log_file)))
-    //     .init();
+    // IT WORKS, but slow even on release
+    // aud::tags::add_tag("/home/focus/code/luma/test-in.ogg", "hello", "world")?;
+
+    let log_file = std::fs::File::create("./luma.log").unwrap();
+    env_logger::builder()
+        .target(env_logger::Target::Pipe(Box::new(log_file)))
+        .init();
+    log::debug!("log init");
 
     // let mut state = State::default();
     let mut mode = Mode::default();
-    let mut luma: Luma = yaml::from_str(&fs::read_to_string(&args.file)?)?;
+    let mut luma: Luma = json::from_str(&fs::read_to_string(&args.file)?)?;
     // let mut client = mpd::Client::new();
 
     let mut screen = Screen::default();
@@ -36,6 +63,8 @@ fn main() -> Result<()> {
     screen.init()?;
 
     let mut app = App::new()?;
+    let mut handler = Handler::new();
+    handler.add_default_binds();
 
     // --------------------------------------------
     app.init()?;
@@ -43,14 +72,20 @@ fn main() -> Result<()> {
 
     while app.run {
         let event = read_event();
-        match app.handle(event, &mut luma, &mut mode)? {
-            LumaMessage::Redraw => app.draw(&luma, &mode)?,
-            LumaMessage::SetMode(m) => {
-                mode = m;
-                app.draw(&luma, &mode)?;
+        log::trace!("read key event: {:?}", event);
+        if let Some(req) = input::handle(event, &mut screen, &mut luma, &mut mode, &mut handler) {
+            match req {
+                LumaMessage::Redraw => {
+                    log::trace!("redrawing");
+                    app.draw(&luma, &mode)?;
+                }
+                LumaMessage::SetMode(m) => {
+                    log::trace!("setting mode");
+                    mode = m;
+                    app.draw(&luma, &mode)?;
+                }
+                LumaMessage::Exit => app.run = false,
             }
-            LumaMessage::Exit => app.run = false,
-            LumaMessage::Nothing => {}
         }
     }
 
@@ -68,7 +103,7 @@ fn main() -> Result<()> {
     };
 
     if let Ok(f) = fs::File::create(path) {
-        yaml::to_writer(f, &luma).unwrap();
+        json::to_writer_pretty(f, &luma).unwrap();
     }
 
     Ok(())

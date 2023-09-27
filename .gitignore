@@ -1,4 +1,6 @@
 target/
 /refs/
 
-@INDEX.yml
+@INDEX.json
+test-in.ogg
+luma.log

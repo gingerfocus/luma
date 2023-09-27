@@ -7,29 +7,29 @@ description = "Link management to organize the internet ⚡"
 [dependencies]
 tui = { package = "ratatui", version = "0.23", features = ["serde"]}
 crossterm = "0.27"
-indexmap = { version = "2", features = ["serde"] }
+clap = { version = "4.4", features = ["derive"] }
+requestty = "0.5"
 
 thiserror = "1"
 anyhow = "1.0"
 
 serde = { version = "1.0", features = ["derive"] }
-yaml = { package = "serde_yaml", version = "0.9" }
+json = {package = "serde_json", version = "1"}
 
-clap = { version = "4.4", features = ["derive"] }
+vorbis_rs = "0.5"
 
-requestty = "0.5"
+env_logger = "0.10"
+log = "0.4"
 
-# lazy_static = "1.4"
+indexmap = { version = "2", features = ["serde"] }
 
-# toml = "0.7"
+lazy_static = "1.4"
 # directories = "5.0"
 # fs_extra = "1.3"
 # dunce = "1.0"
 # mpd = "0.1.0"
 # rand = "0.8"
 # glam = "0.24"
-# log = "0.4"
-# env_logger = "0.10"
 # ron = "0.8"
 # dirs.workspace = true
 # id3.workspace = true                # = "1"

@@ -33,13 +33,12 @@ pub fn list(set: &[Link]) -> List<'_> {
     .block(Block::default().title("links").borders(Borders::all()))
 }
 
-pub fn tabs(names: Vec<&String>, selected: usize) -> Tabs<'static> {
+pub fn tabs<'a>(names: impl IntoIterator<Item = &'a String>, selected: usize) -> Tabs<'static> {
     // NOTE: most of this is just constant so try using a lazy static
 
     Tabs::new(
         names
-            .iter()
-            .cloned()
+            .into_iter()
             .cloned()
             .map(Line::from)
             .collect::<Vec<Line<'_>>>(),

@@ -10,3 +10,7 @@ build:
 publish:
     cargo clippy -q -- -D warnings
     cargo test -q
+
+debug:
+    RUST_LOG=debug cargo run -- @INDEX.json
+    bat luma.log
