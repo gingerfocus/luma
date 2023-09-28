@@ -10,8 +10,13 @@ build: # build the project
 publish: # format lint and test the project
     cargo fmt
     cargo clippy -q -- -D warnings
+    ! rg 'blocking_read' src/
     cargo test -q
 
 debug:
     RUST_LOG=debug cargo run -- @INDEX.json
+    bat luma.log
+
+trace:
+    RUST_LOG=trace cargo run -- @INDEX.json
     bat luma.log

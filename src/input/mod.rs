@@ -11,19 +11,19 @@ pub use self::key::Key;
 pub use self::mouse::Mouse;
 pub use self::mouse::MouseKind;
 
-pub fn handle(event: Event, handler: &mut Handler, mode: &mut Mode) -> Option<LumaMessage> {
+pub async fn handle(event: Event, handler: &mut Handler, mode: &GlobalMode) -> Option<LumaMessage> {
     match event {
         Event::GainedFocus(_did) => None,
         Event::Input(key) => handler.handle(key, mode),
-        Event::Click(click) => handle_click(click),
+        Event::Click(click) => handle_click(click).await,
         Event::Paste(paste) => handle_paste(paste, mode),
         Event::Resize(_x, _y) => None,
         Event::Tick => None,
     }
 }
 
-fn handle_paste(paste: String, mode: &mut Mode) -> Option<LumaMessage> {
-    match mode {
+fn handle_paste(paste: String, mode: &GlobalMode) -> Option<LumaMessage> {
+    match &mut mode.write().unwrap() as &mut Mode {
         Mode::Normal => None,
         Mode::Prompt { .. } => None,
         Mode::Insert(data) => {
@@ -33,7 +33,7 @@ fn handle_paste(paste: String, mode: &mut Mode) -> Option<LumaMessage> {
     }
 }
 
-fn handle_click(click: Mouse) -> Option<LumaMessage> {
+async fn handle_click(click: Mouse) -> Option<LumaMessage> {
     let Mouse { kind, .. } = click;
     match kind {
         crate::input::MouseKind::LeftClick => todo!(),
@@ -41,7 +41,7 @@ fn handle_click(click: Mouse) -> Option<LumaMessage> {
         crate::input::MouseKind::MiddleClick => todo!(),
         crate::input::MouseKind::Drag => todo!(),
         crate::input::MouseKind::Scroll(i) => {
-            let mut gwrite = STATE.write().unwrap();
+            let mut gwrite = STATE.write().await;
             if i < 0 {
                 _ = gwrite.selected_index.saturating_sub(-i as usize);
             } else {

@@ -1,3 +1,7 @@
+use futures::executor::block_on;
+use tokio::sync::oneshot;
+
+use crate::mode::PromptResponse;
 use crate::prelude::*;
 
 // macro_rules! numeric_key_option {
@@ -14,13 +18,14 @@ use crate::prelude::*;
 // }
 
 use crate::input::Key;
+use crate::state::Link;
 
 use super::Handler;
 
 pub fn add_all(h: &mut Handler) {
     h.add_normal_handlers([Key::Char('q'), Key::Ctrl('c')], exit);
 
-    // h.add_normal_handler(Key::Char('i'), go_insert);
+    h.add_normal_handler(Key::Char('i'), go_insert);
     // h.add_normal_handler(Key::Char('e'), go_edit);
 
     h.add_normal_handlers([Key::Down, Key::Char('j')], move_down);
@@ -31,7 +36,7 @@ pub fn add_all(h: &mut Handler) {
     h.add_normal_handler(Key::Char('g'), go_top);
     h.add_normal_handler(Key::Char('G'), go_bottom);
 
-    // h.add_normal_handlers([Key::Char('D'), Key::Backspace], delete);
+    h.add_normal_handlers([Key::Char('D'), Key::Backspace], delete);
 
     // h.add_normal_handler(Key::Char('?'), show_help);
 }
@@ -95,86 +100,77 @@ fn exit() -> Option<LumaMessage> {
 //     // Some(LumaMessage::AskQuestion(q, &(edit_link as fn(Answer))))
 // }
 
-// fn go_insert() -> Option<LumaMessage> {
-//     let read = STATE.read().unwrap();
-//     let tab = read.selected_tab;
-//     let index = read.selected_index;
-//     drop(read);
-//
-//     let callback = Rc::new(move |luma: &mut Luma, mut buffers: Vec<String>| {
-//         let name = buffers.pop().unwrap(); // index 1
-//         let link = buffers.pop().unwrap(); // index 0
-//
-//         luma.get_index_mut(tab)
-//             .unwrap()
-//             .1
-//             .insert(index, Link::new(name, link));
-//     });
-//
-//     // let prompts = ["link".into(), "name".into(), "".into(), "".into()];
-//
-//     let (tx_link, rx_link) = tokio::sync::oneshot::channel();
-//     let (tx_name, rx_name) = tokio::sync::oneshot::channel();
-//
-//     LumaMessage::SetMode(Mode::Insert(vec![
-//         ("link: ".to_string(), String::new(), tx_link),
-//         ("name: ".into(), String::new(), tx_name),
-//     ]))
-//     .into()
-// }
+fn go_insert() -> Option<LumaMessage> {
+    let (tab, index) = block_on(util::get_tab_and_index());
+
+    let (tx_link, rx_link) = oneshot::channel();
+    let (tx_name, rx_name) = oneshot::channel();
+
+    let _h = tokio::spawn(async move {
+        log::info!("insert request waiting on responses");
+        let name = rx_name.await.unwrap();
+        log::info!("got name: {}", name);
+        let link = rx_link.await.unwrap();
+        log::info!("got link: {}", link);
+
+        if let Some(set) = block_on(async { LUMA.write().await }).get_index_mut(tab) {
+            set.1.insert(index, Link::new(name, link))
+        }
+    });
+
+    LumaMessage::SetMode(Mode::Insert(vec![
+        ("link: ".to_string(), String::new(), tx_link),
+        ("name: ".into(), String::new(), tx_name),
+    ]))
+    .into()
+}
 
 fn move_down() -> Option<LumaMessage> {
     log::debug!("Moving cursor down");
-    let mut gwrite = STATE.write().unwrap();
+    let mut state = block_on(async { STATE.write().await });
 
-    let max_len = LUMA
-        .read()
-        .unwrap()
-        .get_index(gwrite.selected_tab)
+    let max_len = block_on(async { LUMA.read().await })
+        .get_index(state.selected_tab)
         .unwrap()
         .1
         .len();
-    if gwrite.selected_index < max_len - 1 {
-        gwrite.selected_index += 1;
+    if state.selected_index < max_len - 1 {
+        state.selected_index += 1;
     }
 
     LumaMessage::Redraw.into()
 }
 
 fn move_up() -> Option<LumaMessage> {
-    let mut gwrite = STATE.write().unwrap();
+    let mut state = block_on(async { STATE.write().await });
 
-    if gwrite.selected_index > 0 {
-        gwrite.selected_index -= 1;
+    if state.selected_index > 0 {
+        state.selected_index -= 1;
     }
     LumaMessage::Redraw.into()
 }
 
 fn select() -> Option<LumaMessage> {
-    let gread = STATE.read().unwrap();
-    let tab = gread.selected_tab;
-    let index = gread.selected_index;
-    drop(gread);
-
-    let luma = LUMA.read().unwrap();
-    let set = luma.get_index(tab).unwrap();
-    let link = set.1.get(index).unwrap();
-    log::info!("Opening link: {}", link.link);
-    AUDIO_OPENER.open(&link.link);
+    let (tab, index) = block_on(util::get_tab_and_index());
+    {
+        let luma = block_on(async { LUMA.read().await });
+        let set = luma.get_index(tab).unwrap();
+        let link = set.1.get(index).unwrap();
+        log::info!("Opening link: {}", link.link);
+        AUDIO_OPENER.open(&link.link);
+    }
     None
 }
 
 fn go_top() -> Option<LumaMessage> {
-    let mut state = STATE.write().unwrap();
+    let mut state = block_on(async { STATE.write().await });
     state.selected_index = 0;
     LumaMessage::Redraw.into()
 }
 
 fn go_bottom() -> Option<LumaMessage> {
-    let mut state = STATE.write().unwrap();
-    let max_index = LUMA
-        .read()
-        .unwrap()
+    let mut state = block_on(async { STATE.write().await });
+    let max_index = block_on(async { LUMA.read().await })
         .get_index(state.selected_tab)
         .unwrap()
         .1
@@ -206,41 +202,39 @@ fn go_bottom() -> Option<LumaMessage> {
 //     });
 // }
 
-// fn delete() {
-//     let h = tokio::spawn(async move {
-//         let (tab, index) = {
-//             let state = STATE.read().unwrap();
-//             (state.selected_tab, state.selected_index)
-//         };
-//
-//         let name = LUMA
-//             .read()
-//             .unwrap()
-//             .get_index(tab)
-//             .unwrap()
-//             .1
-//             .get(index)
-//             .unwrap()
-//             .name
-//             .clone();
-//
-//         let (tx, rx) = oneshot::channel();
-//
-//         *MODE.write().unwrap() = Mode::Prompt(crate::mode::PromptData {
-//             prompt: format!("Remove audio \"{}\"? (y/N)", name).into_boxed_str(),
-//             resp: Some(tx),
-//         });
-//
-//         if let Ok(PromptResponse::Yes) = rx.await {
-//             LUMA.write()
-//                 .unwrap()
-//                 .get_index_mut(tab)
-//                 .expect("thing")
-//                 .1
-//                 .remove(index);
-//         }
-//     });
-// }
+/// This currently works but is a bit hacky
+/// There might be some consideration to using a tokio::sync::RwLock so the write
+/// can be held over the await to garentee that no one changes it in the down time
+fn delete() -> Option<LumaMessage> {
+    let (tab, index) = block_on(util::get_tab_and_index());
+
+    let name = block_on(async { LUMA.read().await })
+        .get_index(tab)
+        .unwrap()
+        .1
+        .get(index)
+        .unwrap()
+        .name
+        .clone();
+
+    let (tx, rx) = oneshot::channel();
+
+    let _h = tokio::spawn(async move {
+        if let Ok(PromptResponse::Yes) = rx.await {
+            block_on(async { LUMA.write().await })
+                .get_index_mut(tab)
+                .unwrap()
+                .1
+                .remove(index);
+        }
+    });
+
+    LumaMessage::SetMode(Mode::Prompt(crate::mode::PromptData {
+        prompt: format!("Remove audio \"{}\"? (y/N)", name).into_boxed_str(),
+        resp: Some(tx),
+    }))
+    .into()
+}
 
 //         Key::Left | Key::Char('h') => todo!(),
 //         Key::Right | Key::Char('l') => LumaMessage::Nothing,

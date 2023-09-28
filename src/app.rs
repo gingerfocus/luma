@@ -50,35 +50,32 @@ impl App {
             let Rect { width, height, .. } = f.size();
             self.screen.configure_surface(width, height);
 
-            let gread = STATE.read().unwrap();
-            let tab = gread.selected_tab;
-            let index = gread.selected_index;
-            drop(gread);
+            let (tab, index) = futures::executor::block_on(util::get_tab_and_index());
+            log::trace!("selected tab is: {}", index);
+            log::trace!("selected index is: {}", index);
 
-            let lread = LUMA.read().unwrap();
-            let set = lread.get_index(tab).expect("A valid tab is not selected");
+            {
+                let luma = futures::executor::block_on(async { LUMA.read().await });
 
-            if let Some(link) = set.1.get(index) {
-                // this fixes a bug where when you delete the last entry you are hovering nothing
-                // if index > set.len().saturating_sub(1) {
-                //     self.screen.select_index(set.len() - 1)
-                // }
+                let set = luma.get_index(tab).expect("A valid tab is not selected");
 
-                let preview = crate::ui::render::preview(link);
-                f.render_widget(preview, self.screen.preview_pane);
+                if let Some(link) = set.1.get(index) {
+                    // TODO: when deleting the last item the cursor hovers nothing
+
+                    let preview = crate::ui::render::preview(link);
+                    f.render_widget(preview, self.screen.preview_pane);
+                }
+
+                let list = crate::ui::render::list(set.1);
+
+                let mut state = ListState::default();
+                state.select(Some(index));
+                f.render_stateful_widget(list, self.screen.side_pane, &mut state);
+
+                let names = luma.keys();
+                let tabs = crate::ui::render::tabs(names, tab);
+                f.render_widget(tabs, self.screen.title_bar);
             }
-
-            let list = crate::ui::render::list(set.1);
-
-            let mut state = ListState::default();
-            state.select(Some(index));
-            f.render_stateful_widget(list, self.screen.side_pane, &mut state);
-
-            let names = lread.keys();
-            let tabs = crate::ui::render::tabs(names, tab);
-            f.render_widget(tabs, self.screen.title_bar);
-
-            drop(lread);
 
             match mode {
                 Mode::Normal => {}
@@ -90,35 +87,40 @@ impl App {
                     f.render_widget(prompt_render, float_box);
                 }
                 Mode::Insert(data) => {
-                    let (prompt, buffer, _resp) = data.last().unwrap();
-                    // let prompt = data.prompts.get(data.index).unwrap();
-                    // let buffer = data.buffers.get(data.index).unwrap();
-                    let msg = format!("{}: {}", prompt, buffer);
-                    let msglen = msg.len();
-                    let paragraph = crate::ui::render::input(&msg);
+                    // let Some((prompt, buffer, _resp)) = data.last() else {
+                    //     log::warn!("render tried to draw and out of data prompt buffer");
+                    //     return;
+                    // };
+                    if let Some((prompt, buffer, _resp)) = data.last() {
+                        let msg = format!("{}{}", prompt, buffer);
+                        let msglen = msg.len() as u16;
+                        let paragraph = crate::ui::render::input(&msg);
 
-                    let new_width = std::cmp::max(msg.len() as u16 + 2, width - 20);
-                    let new_height = 3;
-                    let x = (width - new_width) / 2;
-                    let y = (height - new_height) / 2;
+                        let new_width = std::cmp::max(msglen + 2, width - 20);
+                        let new_height = 3;
+                        let x = (width - new_width) / 2;
+                        let y = (height - new_height) / 2;
 
-                    let render_box = Rect {
-                        x,
-                        y,
-                        width: new_width,
-                        height: new_height,
-                    };
+                        let render_box = Rect {
+                            x,
+                            y,
+                            width: new_width,
+                            height: new_height,
+                        };
 
-                    let clear_box = Rect {
-                        x: x - 2,
-                        y,
-                        width: new_width + 1,
-                        height: new_height + 1,
-                    };
+                        let clear_box = Rect {
+                            x: x - 2,
+                            y,
+                            width: new_width + 1,
+                            height: new_height + 1,
+                        };
 
-                    f.render_widget(Clear, clear_box);
-                    f.render_widget(paragraph, render_box);
-                    f.set_cursor(render_box.x + 1 + msglen as u16, render_box.y + 1);
+                        f.render_widget(Clear, clear_box);
+                        f.render_widget(paragraph, render_box);
+                        f.set_cursor(render_box.x + 1 + msglen, render_box.y + 1);
+                    } else {
+                        log::warn!("render tried to draw and out of date prompt buffer");
+                    }
                 }
             }
         })?;

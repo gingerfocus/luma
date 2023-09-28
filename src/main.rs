@@ -17,9 +17,11 @@ pub mod state;
 pub mod util;
 pub mod ui;
 
+use std::{path::PathBuf, time::Duration};
+
 use crate::prelude::*;
 use clap::Parser;
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 
 pub enum LumaMessage {
     Redraw,
@@ -38,6 +40,17 @@ pub enum QuestionType {
     Editor,
 }
 
+async fn init_logger() -> Result<()> {
+    env_logger::builder()
+        .target(env_logger::Target::Pipe(Box::new(fs::File::create(
+            "./luma.log",
+        )?)))
+        .init();
+
+    log::debug!("Luma log init");
+    Ok(())
+}
+
 /// The main function is the cordinator for our tokio rt. It spawns a number of
 /// task that all coridnate to make the app run:
 /// - The render thread
@@ -47,110 +60,33 @@ pub enum QuestionType {
 async fn main() -> Result<()> {
     let args = crate::cli::Args::parse();
 
-    *LUMA.write().unwrap() = json::from_str(&fs::read_to_string(&args.file)?)?;
+    init_logger().await?;
 
-    env_logger::builder()
-        .target(env_logger::Target::Pipe(Box::new(fs::File::create(
-            "./luma.log",
-        )?)))
-        .init();
-
-    log::debug!("Luma log init");
-
+    *LUMA.write().await = json::from_str(&fs::read_to_string(&args.file)?)?;
     let mode: GlobalMode = Default::default();
 
-    let (tx_reqs, rx_reqs) = std::sync::mpsc::channel();
-    let (tx_input, rx_input) = std::sync::mpsc::channel();
+    let (tx_input, rx_input) = mpsc::channel(16);
+    let (tx_reqs, rx_reqs) = mpsc::channel(32);
 
-    let input_task = tokio::spawn(async move {
-        let mut screen = Screen::default();
-        screen.init().unwrap();
-        loop {
-            let event = read_event().await;
-            log::debug!("read key event: {:?}", event);
-            if tx_input.send(event).is_err() {
-                break;
-            }
-        }
-        screen.deinit().unwrap();
-    });
-
-    let mode_c = mode.clone();
-    let request_task = tokio::spawn(async move {
-        let mode = mode_c;
-        let mut handler = Handler::new();
-
-        while let Ok(e) = rx_input.recv() {
-            log::debug!("got key event: {:?}", e);
-
-            let Some(req) = ({
-                let mode: &mut Mode = &mut mode.write().unwrap();
-                input::handle(e, &mut handler, mode)
-            }) else {
-                continue;
-            };
-
-            if tx_reqs.send(req).is_err() {
-                break;
-            }
-        }
-    });
-
-    let render_task = tokio::spawn(async move {
-        let mut app = App::new().unwrap();
-        app.init().unwrap();
-
-        // --------------------------------------------
-        app.draw(&mode.read().unwrap()).unwrap();
-
-        while app.run {
-            match rx_reqs.recv().ok() {
-                Some(LumaMessage::Redraw) => {
-                    app.draw(&mode.read().unwrap()).unwrap();
-                }
-                Some(LumaMessage::Exit) => app.run = false,
-                Some(LumaMessage::SetMode(m)) => {
-                    *mode.write().unwrap() = m;
-                    app.draw(&mode.read().unwrap()).unwrap();
-                }
-                Some(LumaMessage::AskQuestion(comps, resp)) => {
-                    app.deinit().unwrap();
-                    let q = requestty::Question::editor(comps.name)
-                        .default(comps.default)
-                        .build();
-                    let ans = requestty::prompt_one(q)
-                        .unwrap()
-                        .as_string()
-                        .unwrap()
-                        .to_owned();
-                    resp.send(ans).unwrap();
-                    app.init().unwrap();
-                }
-                None => {}
-            }
-
-            // LumaMessage::AskQuestion(q, callback) => {
-            //     app.deinit()?;
-            //     let ans = requestty::prompt_one(q).unwrap();
-            //     callback(ans);
-            //     app.init()?;
-            //     app.redraw()?;
-            // }
-        }
-
-        app.deinit().unwrap();
-        // --------------------------------------------
-
-        crossterm::execute!(io::stdout(), crossterm::cursor::Show).unwrap();
-    });
+    let input_task = tokio::spawn(read_events(tx_input));
+    let request_task = tokio::spawn(process_request(tx_reqs, rx_input, mode.clone()));
+    let render_task = tokio::spawn(render_screen(rx_reqs, mode));
 
     render_task.await.unwrap();
-    request_task.await.unwrap();
     input_task.await.unwrap();
+    request_task.await.unwrap();
 
+    crossterm::execute!(io::stdout(), crossterm::cursor::Show).unwrap();
+
+    save_luma(args.file).await;
+
+    Ok(())
+}
+
+async fn save_luma(file: PathBuf) {
     let file = requestty::Question::input("file")
         .message("Save as")
-        .default(args.file.to_str().unwrap())
+        .default(file.to_str().unwrap())
         .build();
     let path = match requestty::prompt_one(file) {
         Ok(requestty::Answer::String(s)) => s,
@@ -158,19 +94,125 @@ async fn main() -> Result<()> {
     };
 
     if let Ok(f) = fs::File::create(path) {
-        json::to_writer_pretty::<_, Luma>(f, &LUMA.read().unwrap()).unwrap();
+        json::to_writer_pretty::<_, Luma>(f, &LUMA.read().await as &Luma).unwrap();
     }
-
-    Ok(())
 }
 
-async fn read_event() -> Event {
-    crossterm::event::read()
-        .map(Into::into)
-        .unwrap_or(Event::Tick)
-    // if crossterm::event::poll(std::time::Duration::from_millis(500)).unwrap() {
-    //     crossterm::event::read().map(Into::into).unwrap()
-    // } else {
-    //     Event::Tick
-    // }
+async fn read_events(tx: mpsc::Sender<Event>) {
+    log::info!("event thread created");
+    let mut reader = crossterm::event::EventStream::new();
+
+    let mut screen = Screen::default();
+    screen.init().unwrap();
+
+    'read: loop {
+        let delay = tokio::time::sleep(Duration::from_secs(1));
+        let event = futures::StreamExt::next(&mut reader);
+
+        let event = tokio::select! {
+            _ = tx.closed() => break 'read,
+            _ = delay => Event::Tick,
+            e = event => {
+                if let Some(event) = e {
+                    let event = event.unwrap().into();
+                    log::debug!("read key event: {:?}", event);
+                    event
+                } else {
+                    break;
+                }
+            }
+        };
+
+        if tx.send(event).await.is_err() {
+            break 'read;
+        }
+    }
+    screen.deinit().unwrap();
+
+    log::info!("event thread ended");
+}
+
+async fn process_request(
+    tx: mpsc::Sender<LumaMessage>,
+    mut rx: mpsc::Receiver<Event>,
+    mode: GlobalMode,
+) {
+    log::info!("request thread created");
+    let mut handler = Handler::new();
+
+    'read: loop {
+        let timeout = tokio::time::sleep(Duration::from_secs(2));
+
+        tokio::select! {
+            _ = tx.closed() => break 'read,
+            _ = timeout => return,
+            e = rx.recv() => {
+                if let Some(event) = e {
+                    log::trace!("got key event: {:?}", event);
+
+                    let Some(req) = ({
+                        input::handle(event, &mut handler, &mode).await
+                    }) else {
+                        continue;
+                    };
+
+                    if tx.send(req).await.is_err() {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    log::info!("request thread ended");
+}
+
+async fn render_screen(mut rx: mpsc::Receiver<LumaMessage>, mode: GlobalMode) {
+    log::info!("render thread created");
+
+    let mut app = App::new().unwrap();
+    app.init().unwrap();
+
+    // --------------------------------------------
+    app.draw(&mode.read().unwrap()).unwrap();
+
+    while app.run {
+        match rx.recv().await {
+            Some(LumaMessage::Redraw) => {
+                app.draw(&mode.read().unwrap()).unwrap();
+            }
+            Some(LumaMessage::Exit) => app.run = false,
+            Some(LumaMessage::SetMode(m)) => {
+                log::info!("waiting on write for mode.");
+                *mode.write().unwrap() = m;
+                app.draw(&mode.read().unwrap()).unwrap();
+            }
+            Some(LumaMessage::AskQuestion(comps, resp)) => {
+                app.deinit().unwrap();
+                let q = requestty::Question::editor(comps.name)
+                    .default(comps.default)
+                    .build();
+                let ans = requestty::prompt_one(q)
+                    .unwrap()
+                    .as_string()
+                    .unwrap()
+                    .to_owned();
+                resp.send(ans).unwrap();
+                app.init().unwrap();
+            }
+            None => {}
+        }
+
+        // LumaMessage::AskQuestion(q, callback) => {
+        //     app.deinit()?;
+        //     let ans = requestty::prompt_one(q).unwrap();
+        //     callback(ans);
+        //     app.init()?;
+        //     app.redraw()?;
+        // }
+    }
+
+    app.deinit().unwrap();
+    // --------------------------------------------
+
+    log::info!("render thread ended");
 }

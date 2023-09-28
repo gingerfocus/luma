@@ -18,7 +18,8 @@ type GlobalState = Arc<RwLock<State>>;
 type GlobalLuma = Arc<RwLock<Luma>>;
 pub type GlobalMode = std::sync::Arc<std::sync::RwLock<Mode>>;
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 lazy_static::lazy_static! {
     pub static ref STATE: GlobalState = Default::default();

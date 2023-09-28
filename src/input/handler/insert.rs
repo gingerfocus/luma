@@ -16,7 +16,6 @@ fn delete(data: &mut InsertData) -> Option<LumaMessage> {
 fn complete(data: &mut InsertData) -> Option<LumaMessage> {
     if let Some((_prompt, buffer, resp)) = data.pop() {
         resp.send(buffer).unwrap();
-
         LumaMessage::Redraw.into()
     } else {
         LumaMessage::SetMode(Mode::Normal).into()

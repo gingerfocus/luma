@@ -70,8 +70,8 @@ impl Handler {
         }
     }
 
-    pub fn handle(&mut self, key: Key, mode: &mut Mode) -> Option<LumaMessage> {
-        match mode {
+    pub fn handle(&mut self, key: Key, mode: &GlobalMode) -> Option<LumaMessage> {
+        match &mut mode.write().unwrap() as &mut Mode {
             Mode::Normal => self.normal_keys.get(&key).and_then(|f| f()),
             Mode::Insert(data) => match self.insert_keys.get(&key) {
                 Some(f) => f(data),
