@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::{input::Key, mode::PromptData, LumaMessage};
+use crate::{input::Key, mode::PromptData};
 
 use super::Handler;
 
@@ -11,16 +11,24 @@ pub fn add_all(h: &mut Handler) {
     h.add_prompt_handlers([Key::Esc, Key::Char('q'), Key::Ctrl('c')], cancel);
 }
 
-fn accept(state: &mut Luma, pd: &mut PromptData) -> Option<LumaMessage> {
-    (pd.accepted)(state);
-    Some(LumaMessage::SetMode(Box::new(Mode::Normal)))
+fn accept(data: &mut PromptData) -> Option<LumaMessage> {
+    if let Some(rx) = data.resp.take() {
+        rx.send(crate::mode::PromptResponse::Yes).unwrap();
+    }
+    LumaMessage::SetMode(Mode::Normal).into()
 }
 
-fn decline(state: &mut Luma, pd: &mut PromptData) -> Option<LumaMessage> {
-    (pd.declined)(state);
-    Some(LumaMessage::SetMode(Box::new(Mode::Normal)))
+fn decline(data: &mut PromptData) -> Option<LumaMessage> {
+    if let Some(rx) = data.resp.take() {
+        rx.send(crate::mode::PromptResponse::No).unwrap();
+    }
+    LumaMessage::SetMode(Mode::Normal).into()
 }
 
-fn cancel(_state: &mut Luma, _pd: &mut PromptData) -> Option<LumaMessage> {
-    Some(LumaMessage::SetMode(Box::new(Mode::Normal)))
+fn cancel(data: &mut PromptData) -> Option<LumaMessage> {
+    if let Some(rx) = data.resp.take() {
+        rx.send(crate::mode::PromptResponse::Cancel).unwrap();
+    }
+
+    LumaMessage::SetMode(Mode::Normal).into()
 }

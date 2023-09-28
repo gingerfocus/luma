@@ -1,13 +1,14 @@
-default:
+default: # List avalable options
     @just -l
 
-loc:
+loc: # Count the lines of code in this project
     find src/ -name "*.rs" | xargs cat | wc -l
 
-build:
-    cargo build -q
+build: # build the project
+    cargo build
 
-publish:
+publish: # format lint and test the project
+    cargo fmt
     cargo clippy -q -- -D warnings
     cargo test -q
 

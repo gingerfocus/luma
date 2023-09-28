@@ -2,51 +2,40 @@
 
 pub use crate::{
     app::App,
+    error::LumaError,
     input::Event,
-    luma::{Link, Luma},
+    input::Handler,
     mode::Mode,
+    state::{Luma, State},
     ui::screen::Screen,
-    LumaMessage,
+    util, LumaMessage,
 };
-
 pub use std::{fs, io};
-
-use std::sync::{Arc, RwLock};
-pub type GlobalState = Arc<RwLock<State>>;
-
-#[derive(Default)]
-pub struct State {
-    pub selected_tab: usize,
-    pub selected_index: usize,
-}
-
-lazy_static::lazy_static! {
-    pub static ref STATE: GlobalState = Default::default();
-}
 
 pub type Result<T> = core::result::Result<T, LumaError>;
 
-#[derive(thiserror::Error, Debug)]
-pub enum LumaError {
-    #[error("File io failure")]
-    Io(#[from] io::Error),
+type GlobalState = Arc<RwLock<State>>;
+type GlobalLuma = Arc<RwLock<Luma>>;
+pub type GlobalMode = std::sync::Arc<std::sync::RwLock<Mode>>;
 
-    #[error("Generic error: `{0}`")]
-    Generic(String),
+use std::sync::{Arc, RwLock};
 
-    #[error("Config parse error: {0}")]
-    Config(#[from] json::Error),
+lazy_static::lazy_static! {
+    pub static ref STATE: GlobalState = Default::default();
+    pub static ref LUMA: GlobalLuma = Default::default();
 
-    #[error("Encoder error: {0}")]
-    Encoder(#[from] vorbis_rs::VorbisError),
-
-    // #[error("invalid header (expected {expected:?}, found {found:?})")]
-    // InvalidHeader {
-    //     expected: String,
-    //     found: String,
-    // },
-
-    #[error("Unknown error")]
-    Unknown,
-    // Mpd,
+    pub static ref AUDIO_OPENER: crate::state::OpenCommand = crate::state::OpenCommand {
+        cmd: "firefox",
+        args: ["--private-window"].into(),
+    };
 }
+
+// const LINK_OPENER: LazyCell<luma::OpenCommand> = LazyCell::new(|| luma::OpenCommand {
+//     cmd: "firefox",
+//     args: ["--private-window"].into(),
+// });
+// const TEXT_OPENER: LazyCell<luma::OpenCommand> = LazyCell::new(|| luma::OpenCommand {
+//     cmd: "firefox",
+//     args: ["--private-window"].into(),
+// });
+// const DOWNLOAD_DIR: &'static str = "~/dl";

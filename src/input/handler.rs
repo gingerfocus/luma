@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use tokio::time::Instant;
+
 use crate::{
     mode::{InsertData, PromptData},
     prelude::*,
@@ -11,10 +13,11 @@ mod prompt;
 
 use super::key::Key;
 
-type NormalFunction = fn(&mut Luma) -> Option<LumaMessage>;
-type InsertFunction = fn(&mut Luma, &mut InsertData) -> Option<LumaMessage>;
-type PromptFunction = fn(&mut Luma, &mut PromptData) -> Option<LumaMessage>;
+type NormalFunction = fn() -> Option<LumaMessage>;
+type InsertFunction = fn(&mut InsertData) -> Option<LumaMessage>;
+type PromptFunction = fn(&mut PromptData) -> Option<LumaMessage>;
 
+#[derive(Default)]
 pub struct Handler {
     normal_keys: HashMap<Key, NormalFunction>,
     /// Bindings willl call their call back when they exist, unlike the other
@@ -26,11 +29,12 @@ pub struct Handler {
 
 impl Handler {
     pub fn new() -> Handler {
-        Self {
-            normal_keys: Default::default(),
-            insert_keys: Default::default(),
-            prompt_keys: Default::default(),
-        }
+        let mut s = Self::default();
+
+        let time_i = Instant::now();
+        s.add_default_binds();
+        log::info!("Adding key binds took {:?}", time_i.elapsed());
+        s
     }
 
     pub fn add_default_binds(&mut self) {
@@ -66,22 +70,22 @@ impl Handler {
         }
     }
 
-    pub fn handle(&self, key: Key, state: &mut Luma, mode: &mut Mode) -> Option<LumaMessage> {
+    pub fn handle(&mut self, key: Key, mode: &mut Mode) -> Option<LumaMessage> {
         match mode {
-            Mode::Normal => self.normal_keys.get(&key).and_then(|f| f(state)),
+            Mode::Normal => self.normal_keys.get(&key).and_then(|f| f()),
             Mode::Insert(data) => match self.insert_keys.get(&key) {
-                Some(f) => f(state, data),
+                Some(f) => f(data),
                 None => write_char_to_insert_data(key, data),
             },
-            Mode::Prompt(pd) => self.prompt_keys.get(&key).and_then(|f| f(state, pd)),
+            Mode::Prompt(data) => self.prompt_keys.get(&key).and_then(|f| f(data)),
         }
     }
 }
 
 fn write_char_to_insert_data(k: Key, data: &mut InsertData) -> Option<LumaMessage> {
     if let Key::Char(c) = k {
-        data.buffers.get_mut(data.index)?.push(c);
-        Some(LumaMessage::Redraw)
+        data.last_mut().unwrap().1.push(c);
+        LumaMessage::Redraw.into()
     } else {
         None
     }

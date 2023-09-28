@@ -10,14 +10,15 @@ just build
 ## Testing
 ```sh
 just publish
+OR
+cargo test
+cargo clippy
 ```
 
-## Future
-A hook system where you can register a function for an event and then it gets
-ran when it triggers. These events can be the next key press of something or
-entering or leaving a mode.
-
 ## Development
+
+General Idea is that it takes applications that already exists and unifies them.
+It follows unix philosiphy in letter other programs do other things better.
 
 I have lots of ideas for what this could be in the thing and here they are
 arranged by importance.

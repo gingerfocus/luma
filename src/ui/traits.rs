@@ -5,7 +5,7 @@ use tui::{
     widgets::*,
 };
 
-use crate::luma::Link;
+use crate::state::Link;
 
 pub trait AsParagraph {
     fn as_paragraph(&self) -> tui::widgets::Paragraph;

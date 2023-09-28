@@ -1,6 +1,6 @@
-target/
+/target/
 /refs/
 
 @INDEX.json
-test-in.ogg
 luma.log
+in.ogg

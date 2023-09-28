@@ -1,6 +1,5 @@
 use crossterm::event;
 
-
 #[derive(Debug)]
 pub struct Mouse {
     pub pos: (u16, u16),

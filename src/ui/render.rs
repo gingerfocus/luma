@@ -1,9 +1,4 @@
-//! found this coll box, lost the other half, just thought you might want it
-//! ```
-//! ┌────────────────────────────┐
-//! ```
-
-use crate::prelude::*;
+use crate::state::Link;
 use tui::{prelude::*, widgets::*};
 
 pub fn float_box(msg: &str, width: u16, height: u16) -> Rect {

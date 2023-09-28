@@ -37,7 +37,13 @@ impl App {
         Ok(())
     }
 
-    pub fn draw(&mut self, luma: &Luma, mode: &Mode) -> Result<()> {
+    pub fn redraw(&mut self, mode: &Mode) -> Result<()> {
+        self.terminal.draw(|f| f.render_widget(Clear, f.size()))?;
+        self.draw(mode)
+    }
+
+    pub fn draw(&mut self, mode: &Mode) -> Result<()> {
+        log::debug!("redraw started");
         self.terminal.draw(|f| {
             // configure the surface so out drawing boxes are the right size
             // if they changed since last render.
@@ -49,7 +55,8 @@ impl App {
             let index = gread.selected_index;
             drop(gread);
 
-            let set = luma.get_index(tab).expect("A valid tab is not selected");
+            let lread = LUMA.read().unwrap();
+            let set = lread.get_index(tab).expect("A valid tab is not selected");
 
             if let Some(link) = set.1.get(index) {
                 // this fixes a bug where when you delete the last entry you are hovering nothing
@@ -67,9 +74,11 @@ impl App {
             state.select(Some(index));
             f.render_stateful_widget(list, self.screen.side_pane, &mut state);
 
-            let names = luma.keys();
+            let names = lread.keys();
             let tabs = crate::ui::render::tabs(names, tab);
             f.render_widget(tabs, self.screen.title_bar);
+
+            drop(lread);
 
             match mode {
                 Mode::Normal => {}
@@ -81,8 +90,9 @@ impl App {
                     f.render_widget(prompt_render, float_box);
                 }
                 Mode::Insert(data) => {
-                    let prompt = data.prompts.get(data.index).unwrap();
-                    let buffer = data.buffers.get(data.index).unwrap();
+                    let (prompt, buffer, _resp) = data.last().unwrap();
+                    // let prompt = data.prompts.get(data.index).unwrap();
+                    // let buffer = data.buffers.get(data.index).unwrap();
                     let msg = format!("{}: {}", prompt, buffer);
                     let msglen = msg.len();
                     let paragraph = crate::ui::render::input(&msg);
@@ -112,6 +122,8 @@ impl App {
                 }
             }
         })?;
+
+        log::debug!("redraw done");
 
         Ok(())
     }

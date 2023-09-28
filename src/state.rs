@@ -3,6 +3,12 @@ use tui::style::Color;
 
 pub type Luma = IndexMap<String, Vec<Link>>;
 
+#[derive(Default)]
+pub struct State {
+    pub selected_tab: usize,
+    pub selected_index: usize,
+}
+
 #[derive(Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct OpenCommand {
     pub cmd: &'static str,

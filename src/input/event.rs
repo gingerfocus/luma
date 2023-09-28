@@ -33,5 +33,3 @@ impl From<CrossEvent> for Event {
         }
     }
 }
-
-

@@ -6,92 +6,148 @@
 // #![warn(missing_docs)]
 
 pub mod app;
-pub mod aud;
+// pub mod aud;
 pub mod cli;
+pub mod error;
 mod input;
-pub mod luma;
 pub mod mode;
 pub mod prelude;
+pub mod state;
+#[macro_use]
+pub mod util;
 pub mod ui;
 
 use crate::prelude::*;
 use clap::Parser;
-use input::Handler;
-
-lazy_static::lazy_static!(
-    static ref AUDIO_OPENER: luma::OpenCommand = luma::OpenCommand {
-        cmd: "firefox",
-        args: ["--private-window"].into(),
-    };
-);
-// const LINK_OPENER: LazyCell<luma::OpenCommand> = LazyCell::new(|| luma::OpenCommand {
-//     cmd: "firefox",
-//     args: ["--private-window"].into(),
-// });
-// const TEXT_OPENER: LazyCell<luma::OpenCommand> = LazyCell::new(|| luma::OpenCommand {
-//     cmd: "firefox",
-//     args: ["--private-window"].into(),
-// });
-// const DOWNLOAD_DIR: &'static str = "~/dl";
+use tokio::sync::oneshot;
 
 pub enum LumaMessage {
     Redraw,
-    SetMode(Box<Mode>),
     Exit,
+    SetMode(Mode),
+    AskQuestion(QuestionComponents, oneshot::Sender<String>),
 }
 
-fn main() -> Result<()> {
+pub struct QuestionComponents {
+    name: String,
+    _question: QuestionType,
+    default: String,
+}
+
+pub enum QuestionType {
+    Editor,
+}
+
+/// The main function is the cordinator for our tokio rt. It spawns a number of
+/// task that all coridnate to make the app run:
+/// - The render thread
+/// - The input thread
+/// - The worker/processor thread
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = crate::cli::Args::parse();
 
-    // IT WORKS, but slow even on release
-    // aud::tags::add_tag("/home/focus/code/luma/test-in.ogg", "hello", "world")?;
+    *LUMA.write().unwrap() = json::from_str(&fs::read_to_string(&args.file)?)?;
 
-    let log_file = std::fs::File::create("./luma.log").unwrap();
     env_logger::builder()
-        .target(env_logger::Target::Pipe(Box::new(log_file)))
+        .target(env_logger::Target::Pipe(Box::new(fs::File::create(
+            "./luma.log",
+        )?)))
         .init();
-    log::debug!("log init");
 
-    // let mut state = State::default();
-    let mut mode = Box::<Mode>::default();
-    let mut luma: Luma = json::from_str(&fs::read_to_string(&args.file)?)?;
-    // let mut client = mpd::Client::new();
+    log::debug!("Luma log init");
 
-    let mut screen = Screen::default();
-    // HACK: make the screen valid during the transition period
-    screen.init()?;
+    let mode: GlobalMode = Default::default();
 
-    let mut app = App::new()?;
-    let mut handler = Handler::new();
-    handler.add_default_binds();
+    let (tx_reqs, rx_reqs) = std::sync::mpsc::channel();
+    let (tx_input, rx_input) = std::sync::mpsc::channel();
 
-    // --------------------------------------------
-    app.init()?;
-    app.draw(&luma, &mode)?;
-
-    while app.run {
-        let event = read_event();
-        log::trace!("read key event: {:?}", event);
-        if let Some(req) = input::handle(event, &mut screen, &mut luma, &mut mode, &handler) {
-            match req {
-                LumaMessage::Redraw => {
-                    log::trace!("redrawing");
-                    app.draw(&luma, &mode)?;
-                }
-                LumaMessage::SetMode(m) => {
-                    log::trace!("setting mode");
-                    mode = m;
-                    app.draw(&luma, &mode)?;
-                }
-                LumaMessage::Exit => app.run = false,
+    let input_task = tokio::spawn(async move {
+        let mut screen = Screen::default();
+        screen.init().unwrap();
+        loop {
+            let event = read_event().await;
+            log::debug!("read key event: {:?}", event);
+            if tx_input.send(event).is_err() {
+                break;
             }
         }
-    }
+        screen.deinit().unwrap();
+    });
 
-    app.deinit()?;
-    // --------------------------------------------
+    let mode_c = mode.clone();
+    let request_task = tokio::spawn(async move {
+        let mode = mode_c;
+        let mut handler = Handler::new();
 
-    crossterm::execute!(io::stdout(), crossterm::cursor::Show)?;
+        while let Ok(e) = rx_input.recv() {
+            log::debug!("got key event: {:?}", e);
+
+            let Some(req) = ({
+                let mode: &mut Mode = &mut mode.write().unwrap();
+                input::handle(e, &mut handler, mode)
+            }) else {
+                continue;
+            };
+
+            if tx_reqs.send(req).is_err() {
+                break;
+            }
+        }
+    });
+
+    let render_task = tokio::spawn(async move {
+        let mut app = App::new().unwrap();
+        app.init().unwrap();
+
+        // --------------------------------------------
+        app.draw(&mode.read().unwrap()).unwrap();
+
+        while app.run {
+            match rx_reqs.recv().ok() {
+                Some(LumaMessage::Redraw) => {
+                    app.draw(&mode.read().unwrap()).unwrap();
+                }
+                Some(LumaMessage::Exit) => app.run = false,
+                Some(LumaMessage::SetMode(m)) => {
+                    *mode.write().unwrap() = m;
+                    app.draw(&mode.read().unwrap()).unwrap();
+                }
+                Some(LumaMessage::AskQuestion(comps, resp)) => {
+                    app.deinit().unwrap();
+                    let q = requestty::Question::editor(comps.name)
+                        .default(comps.default)
+                        .build();
+                    let ans = requestty::prompt_one(q)
+                        .unwrap()
+                        .as_string()
+                        .unwrap()
+                        .to_owned();
+                    resp.send(ans).unwrap();
+                    app.init().unwrap();
+                }
+                None => {}
+            }
+
+            // LumaMessage::AskQuestion(q, callback) => {
+            //     app.deinit()?;
+            //     let ans = requestty::prompt_one(q).unwrap();
+            //     callback(ans);
+            //     app.init()?;
+            //     app.redraw()?;
+            // }
+        }
+
+        app.deinit().unwrap();
+        // --------------------------------------------
+
+        crossterm::execute!(io::stdout(), crossterm::cursor::Show).unwrap();
+    });
+
+    render_task.await.unwrap();
+    request_task.await.unwrap();
+    input_task.await.unwrap();
+
     let file = requestty::Question::input("file")
         .message("Save as")
         .default(args.file.to_str().unwrap())
@@ -102,16 +158,19 @@ fn main() -> Result<()> {
     };
 
     if let Ok(f) = fs::File::create(path) {
-        json::to_writer_pretty(f, &luma).unwrap();
+        json::to_writer_pretty::<_, Luma>(f, &LUMA.read().unwrap()).unwrap();
     }
 
     Ok(())
 }
 
-fn read_event() -> Event {
-    if crossterm::event::poll(std::time::Duration::from_millis(500)).unwrap() {
-        crossterm::event::read().map(Into::into).unwrap()
-    } else {
-        Event::Tick
-    }
+async fn read_event() -> Event {
+    crossterm::event::read()
+        .map(Into::into)
+        .unwrap_or(Event::Tick)
+    // if crossterm::event::poll(std::time::Duration::from_millis(500)).unwrap() {
+    //     crossterm::event::read().map(Into::into).unwrap()
+    // } else {
+    //     Event::Tick
+    // }
 }
