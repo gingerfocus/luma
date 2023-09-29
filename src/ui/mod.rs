@@ -2,15 +2,15 @@ pub mod render;
 pub mod screen;
 pub mod traits;
 
-use std::{io::Write, time::Duration};
+use std::time::Duration;
 
 use tokio::task::JoinHandle;
 
-use crate::prelude::*;
+use crate::{prelude::*, util::programs::Programs};
 
 pub async fn render_screen(
     mut rx: mpsc::Receiver<LumaMessage>,
-    event_tx: mpsc::Sender<crate::event::EventReaderRequest>,
+    event_thread_channel: mpsc::Sender<ThreadMessage>,
     mode: GlobalMode,
 ) {
     log::info!("render thread created");
@@ -24,7 +24,7 @@ pub async fn render_screen(
 
     while app.run {
         if let Some(msg) = rx.recv().await {
-            handle_msg(msg, &mut app, &mode, &event_tx, &mut handles).await;
+            handle_msg(msg, &mut app, &mode, &event_thread_channel, &mut handles).await;
         }
 
         let mut new_handles = vec![];
@@ -32,7 +32,14 @@ pub async fn render_screen(
             if h.is_finished() {
                 if let Ok(msgs) = h.await {
                     for msg in msgs {
-                        handle_msg(msg, &mut app, &mode, &event_tx, &mut new_handles).await;
+                        handle_msg(
+                            msg,
+                            &mut app,
+                            &mode,
+                            &event_thread_channel,
+                            &mut new_handles,
+                        )
+                        .await;
                     }
                 }
             } else {
@@ -57,7 +64,7 @@ async fn handle_msg(
     msg: LumaMessage,
     app: &mut App,
     mode: &GlobalMode,
-    event_tx: &mpsc::Sender<crate::event::EventReaderRequest>,
+    event_tx: &mpsc::Sender<ThreadMessage>,
     handles: &mut Vec<JoinHandle<Vec<LumaMessage>>>,
 ) {
     match msg {
@@ -73,72 +80,54 @@ async fn handle_msg(
             app.draw(&mode.read().unwrap()).unwrap();
         }
         LumaMessage::OpenEditor { text, resp } => {
-            log::debug!("Renderer opening editor");
+            log::debug!("Opening editor");
 
-            let (tx, rx) = oneshot::channel();
-            event_tx
-                .send(crate::event::EventReaderRequest::Pause(tx))
-                .await
-                .unwrap();
+            pause_event_channel(app, event_tx).await.unwrap();
 
-            app.deinit().unwrap();
+            Programs::editor(text, resp).await.run().await.unwrap();
 
-            // reader needs some time to ready the terminal so we wait a bit
-            tokio::time::sleep(Duration::from_millis(2)).await;
-
-            if let Some(msg) = match rx.await {
-                Ok(crate::event::EventThreadSuspendResponse::Ok) => None,
-                Ok(crate::event::EventThreadSuspendResponse::No(reason)) => Some(format!(
-                    "Thread refused hangup request with msg: {}",
-                    reason
-                )),
-                Ok(crate::event::EventThreadSuspendResponse::Err(e)) => {
-                    Some(format!("Thread failed hangup request with err: {}", e))
-                }
-                Err(e) => Some(format!("Recv Errored: {}", e)),
-            } {
-                log::error!("{}", msg);
-                panic!("{}", msg);
-            }
-
-            log::debug!("paused event channel sucsessfully");
-
-            const LUMA_TEMPFILE: &str = "/tmp/luma-edit.yaml";
-            {
-                let mut f = fs::File::create(LUMA_TEMPFILE).unwrap();
-                f.write_all(text.as_bytes()).unwrap();
-                log::debug!("wrote inital data to buffer");
-            }
-
-            let _ = tokio::process::Command::new("nvim")
-                .arg(LUMA_TEMPFILE)
-                .spawn()
-                .unwrap()
-                .wait()
-                .await
-                .unwrap()
-                .success();
-
-            log::debug!("asked question");
-
-            let res = fs::read(LUMA_TEMPFILE).unwrap();
-
-            app.init().unwrap();
-
-            // event thream reads phantom events so giving it some breathing room helps
-            tokio::time::sleep(Duration::from_millis(2)).await;
-
-            event_tx
-                .send(crate::event::EventReaderRequest::Resume)
-                .await
-                .unwrap();
+            resume_event_channel(app, event_tx).await.unwrap();
 
             app.redraw(&mode.read().unwrap()).unwrap();
-
-            if let Ok(ans) = String::from_utf8(res) {
-                resp.send(ans).unwrap();
-            }
         }
         LumaMessage::AddHandle(h) => handles.push(h),
     }
+}
+
+async fn pause_event_channel(app: &mut App, event_tx: &mpsc::Sender<ThreadMessage>) -> Result<()> {
+    let (tx, rx) = oneshot::channel();
+    event_tx.send(ThreadMessage::Pause(tx)).await?;
+
+    app.deinit()?;
+
+    // reader needs some time to ready the terminal so we wait a bit
+    tokio::time::sleep(Duration::from_millis(2)).await;
+
+    if let Some(msg) = match rx.await {
+        Ok(ThreadMessageResponse::Ok) => None,
+        Ok(ThreadMessageResponse::No(reason)) => Some(format!(
+            "Thread refused hangup request with msg: {}",
+            reason
+        )),
+        Ok(ThreadMessageResponse::Err(e)) => {
+            Some(format!("Thread failed hangup request with err: {}", e))
+        }
+        Err(e) => Some(format!("Recv Errored: {}", e)),
+    } {
+        log::error!("{}", msg);
+        panic!("{}", msg);
+    }
+
+    log::debug!("paused event channel sucsessfully");
+    Ok(())
+}
+
+async fn resume_event_channel(app: &mut App, event_tx: &mpsc::Sender<ThreadMessage>) -> Result<()> {
+    app.init()?;
+
+    // event thream reads phantom events so giving it some breathing room helps
+    tokio::time::sleep(Duration::from_millis(2)).await;
+
+    event_tx.send(ThreadMessage::Resume).await.unwrap();
+    Ok(())
 }

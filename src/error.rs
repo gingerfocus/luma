@@ -14,6 +14,9 @@ pub enum LumaError {
     // #[error("Encoder error: {0}")]
     // Encoder(#[from] vorbis_rs::VorbisError),
 
+    #[error("Threads failed to sync: {0}")]
+    Sync(#[from] mpsc::error::SendError<ThreadMessage>),
+
     // #[error("invalid header (expected {expected:?}, found {found:?})")]
     // InvalidHeader {
     //     expected: String,

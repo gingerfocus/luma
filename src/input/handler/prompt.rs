@@ -1,5 +1,5 @@
 use crate::event::key::Key;
-use crate::mode::PromptData;
+use crate::state::mode::{PromptData, PromptResponse};
 use crate::prelude::*;
 
 use super::Handler;
@@ -14,21 +14,21 @@ pub fn add_all(h: &mut Handler) {
 
 fn accept(data: &mut PromptData) -> Vec<LumaMessage> {
     if let Some(rx) = data.resp.take() {
-        rx.send(crate::mode::PromptResponse::Yes).unwrap();
+        rx.send(PromptResponse::Yes).unwrap();
     }
     vec![LumaMessage::SetMode(Mode::Normal)]
 }
 
 fn decline(data: &mut PromptData) -> Vec<LumaMessage> {
     if let Some(rx) = data.resp.take() {
-        rx.send(crate::mode::PromptResponse::No).unwrap();
+        rx.send(PromptResponse::No).unwrap();
     }
     vec![LumaMessage::SetMode(Mode::Normal)]
 }
 
 fn cancel(data: &mut PromptData) -> Vec<LumaMessage> {
     if let Some(rx) = data.resp.take() {
-        rx.send(crate::mode::PromptResponse::Cancel).unwrap();
+        rx.send(PromptResponse::Cancel).unwrap();
     }
 
     vec![LumaMessage::SetMode(Mode::Normal)]

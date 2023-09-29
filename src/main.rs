@@ -5,37 +5,20 @@
 // #![warn(missing_docs)]
 
 pub mod app;
-// pub mod aud;
 pub mod cli;
 pub mod error;
 pub mod event;
 pub mod input;
-pub mod mode;
 pub mod prelude;
 pub mod state;
 pub mod ui;
 #[macro_use]
 pub mod util;
 
-use std::{env, path::PathBuf};
+use std::path::PathBuf;
 
 use crate::prelude::*;
 use clap::Parser;
-use tokio::{
-    sync::{mpsc, oneshot},
-    task::JoinHandle,
-};
-
-pub enum LumaMessage {
-    Redraw,
-    Exit,
-    SetMode(Mode),
-    AddHandle(JoinHandle<Vec<LumaMessage>>),
-    OpenEditor {
-        text: String,
-        resp: oneshot::Sender<String>,
-    },
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {

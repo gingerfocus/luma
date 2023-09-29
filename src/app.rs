@@ -64,7 +64,7 @@ impl App {
             log::trace!("selected index is: {}", index);
 
             {
-                let luma = futures::executor::block_on(async { LUMA.read().await });
+                let luma = block_on(async { LUMA.read().await });
 
                 let set = luma.get_index(tab).expect("A valid tab is not selected");
 
@@ -94,42 +94,6 @@ impl App {
 
                     f.render_widget(Clear, float_box);
                     f.render_widget(prompt_render, float_box);
-                }
-                Mode::Insert(data) => {
-                    // let Some((prompt, buffer, _resp)) = data.last() else {
-                    //     log::warn!("render tried to draw and out of data prompt buffer");
-                    //     return;
-                    // };
-                    if let Some((prompt, buffer, _resp)) = data.last() {
-                        let msg = format!("{}{}", prompt, buffer);
-                        let msglen = msg.len() as u16;
-                        let paragraph = crate::ui::render::input(&msg);
-
-                        let new_width = std::cmp::max(msglen + 2, width - 20);
-                        let new_height = 3;
-                        let x = (width - new_width) / 2;
-                        let y = (height - new_height) / 2;
-
-                        let render_box = Rect {
-                            x,
-                            y,
-                            width: new_width,
-                            height: new_height,
-                        };
-
-                        let clear_box = Rect {
-                            x: x - 2,
-                            y,
-                            width: new_width + 1,
-                            height: new_height + 1,
-                        };
-
-                        f.render_widget(Clear, clear_box);
-                        f.render_widget(paragraph, render_box);
-                        f.set_cursor(render_box.x + 1 + msglen, render_box.y + 1);
-                    } else {
-                        log::warn!("render tried to draw and out of date prompt buffer");
-                    }
                 }
             }
         })?;

@@ -6,7 +6,7 @@ pub enum Mode {
     #[default]
     Normal,
     Prompt(PromptData),
-    Insert(InsertData),
+    // Insert(InsertData),
     // Visual,
 }
 

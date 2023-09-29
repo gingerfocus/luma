@@ -1,3 +1,6 @@
+pub mod mode;
+pub mod sync;
+
 use indexmap::IndexMap;
 use tui::style::Color;
 

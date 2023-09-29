@@ -45,20 +45,8 @@ pub async fn handle(event: Event, handler: &mut Handler, mode: &GlobalMode) -> V
         Event::GainedFocus(_did) => vec![],
         Event::Input(key) => handler.handle(key, mode),
         Event::Click(click) => handle_click(click).await,
-        Event::Paste(paste) => handle_paste(paste, mode),
         Event::Resize(_x, _y) => vec![LumaMessage::Redraw],
         Event::Tick => vec![],
-    }
-}
-
-fn handle_paste(paste: String, mode: &GlobalMode) -> Vec<LumaMessage> {
-    match &mut mode.write().unwrap() as &mut Mode {
-        Mode::Normal => vec![],
-        Mode::Prompt { .. } => vec![],
-        Mode::Insert(data) => {
-            data.last_mut().unwrap().1.push_str(&paste);
-            vec![LumaMessage::Redraw]
-        }
     }
 }
 

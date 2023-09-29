@@ -4,16 +4,24 @@ pub mod mouse;
 use std::time::Duration;
 
 use crossterm::event::Event as CrossEvent;
-use tokio::sync::oneshot;
 
 use crate::prelude::*;
 
 use self::{key::Key, mouse::Mouse};
 
+macro_rules! protocal_error {
+    ($msg:expr, $state:expr) => {
+        panic!(
+            "Invalid msg received ({}) for current state ({}).",
+            $msg, $state
+        )
+    };
+}
+
 /// The main task that is spawned to read the events
 pub async fn read_events(
     tx: mpsc::Sender<Event>,
-    mut hangup_requests: mpsc::Receiver<EventReaderRequest>,
+    mut hangup_requests: mpsc::Receiver<ThreadMessage>,
 ) {
     log::info!("event thread created");
 
@@ -27,25 +35,26 @@ pub async fn read_events(
             tokio::select! {
                 e = hangup_requests.recv() => {
                     match e {
-                        Some(EventReaderRequest::Pause(resp)) => {
-                            resp.send(EventThreadSuspendResponse::Ok).unwrap();
-                            paused = true;
-                        }
-                        Some(EventReaderRequest::Resume) => paused = false,
-                        Some(EventReaderRequest::Close) => {
-                            log::debug!("event reader got close request");
-                            run = false;
+                        Some(ThreadMessage::Resume) => {
+                            paused = false;
+                            // HACK: When returning from running an external
+                            // program/there is a phantom event that is read 
+                            // (immediatly?). This next call to the reader just
+                            // discards that message which can often be bad
+                            let _ = futures::StreamExt::next(&mut reader).await;
                         },
+                        Some(ThreadMessage::Close) => run = false,
+                        Some(ThreadMessage::Pause(_)) => protocal_error!("pause", "paused"),
                         None => {},
                     }
                 },
                 _ = tx.closed() => {
-                    log::debug!("consumer gone. event reader exiting");
+                    log::warn!("event consumer gone, reader exiting");
                     run = false;
                 },
             };
         } else {
-            log::debug!("running poll routine");
+            log::trace!("running poll routine");
             let delay = tokio::time::sleep(Duration::from_secs(1));
             let event_steam = futures::StreamExt::next(&mut reader);
 
@@ -53,22 +62,20 @@ pub async fn read_events(
             tokio::select! {
                 e = hangup_requests.recv() => {
                     match e {
-                        Some(EventReaderRequest::Pause(resp)) => {
-                            resp.send(EventThreadSuspendResponse::Ok).unwrap();
+                        Some(ThreadMessage::Pause(resp)) => {
+                            resp.send(ThreadMessageResponse::Ok).unwrap();
                             paused = true;
                         }
-                        Some(EventReaderRequest::Resume) => {
-                            paused = false;
-                            // TODO: when resuming one phantom event is read from the end of the last terminal
-                            // app
-                        },
-                        Some(EventReaderRequest::Close) => run = false,
+                        Some(ThreadMessage::Close) => run = false,
+                        Some(ThreadMessage::Resume) => protocal_error!("resume", "running"),
                         None => {},
                     }
                 },
                 _ = tx.closed() => run = false,
                 _ = delay => event = Some(Event::Tick),
-                e = event_steam => event = e.and_then(|res| res.ok().map(|ev| ev.into())),
+                e = event_steam => {
+                    event = e.and_then(|res| res.ok().map(|ev| ev.into()));
+                },
             };
 
             if let Some(ev) = event {
@@ -82,19 +89,6 @@ pub async fn read_events(
     log::info!("event thread ended");
 }
 
-pub enum EventReaderRequest {
-    Pause(oneshot::Sender<EventThreadSuspendResponse>),
-    Resume,
-    Close,
-}
-
-#[derive(Debug)]
-pub enum EventThreadSuspendResponse {
-    Ok, // (oneshot::Sender<EventReaderRequest>),
-    No(String),
-    Err(LumaError),
-}
-
 /// An occurred event.
 #[derive(Default, Debug)]
 pub enum Event {
@@ -104,8 +98,6 @@ pub enum Event {
     Click(Mouse),
     /// when the terminal is resized
     Resize(u16, u16),
-    /// when some text is put into the terminal
-    Paste(String),
     /// A change in focus for the screen, true when gained, false when lost
     GainedFocus(bool),
     /// An tick event occurred.
@@ -120,7 +112,7 @@ impl From<CrossEvent> for Event {
             CrossEvent::FocusLost => Event::GainedFocus(false),
             CrossEvent::Key(ke) => Event::Input(ke.into()),
             CrossEvent::Mouse(me) => Event::Click(me.into()),
-            CrossEvent::Paste(s) => Event::Paste(s),
+            CrossEvent::Paste(_) => unimplemented!(),
             CrossEvent::Resize(x, y) => Event::Resize(x, y),
         }
     }

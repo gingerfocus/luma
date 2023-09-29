@@ -1,8 +1,5 @@
-use futures::executor::block_on;
-use tokio::sync::oneshot;
-
 use crate::event::key::Key;
-use crate::mode::PromptResponse;
+use crate::state::mode::{PromptResponse, PromptData};
 use crate::prelude::*;
 use crate::state::Link;
 
@@ -139,7 +136,7 @@ fn move_down() -> Vec<LumaMessage> {
         .unwrap()
         .1
         .len();
-    if state.selected_index < max_len - 1 {
+    if state.selected_index < max_len.saturating_sub(1) {
         state.selected_index += 1;
     }
 
@@ -203,7 +200,7 @@ fn show_help() -> Vec<LumaMessage> {
     });
 
     vec![
-        LumaMessage::SetMode(Mode::Prompt(crate::mode::PromptData {
+        LumaMessage::SetMode(Mode::Prompt(PromptData {
             prompt: HELP_TEXT.to_string().into_boxed_str(),
             resp: Some(tx),
         })),
@@ -242,7 +239,7 @@ fn delete() -> Vec<LumaMessage> {
     });
 
     vec![
-        LumaMessage::SetMode(Mode::Prompt(crate::mode::PromptData {
+        LumaMessage::SetMode(Mode::Prompt(PromptData {
             prompt: format!("Remove audio \"{}\"? (y/N)", name).into_boxed_str(),
             resp: Some(tx),
         })),

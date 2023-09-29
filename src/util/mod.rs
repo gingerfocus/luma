@@ -1,5 +1,6 @@
 #[macro_use]
 pub mod globals;
+pub mod programs;
 
 use futures::executor::block_on;
 
