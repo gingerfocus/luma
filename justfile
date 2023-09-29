@@ -18,8 +18,7 @@ publish:
     cargo test -q
 
 # Runs the code and then shows resulting logs
-debug: run
-    bat $HOME/.cache/luma.log
+debug: run log
 
 # Runs the code with example data
 run:
@@ -28,3 +27,7 @@ run:
 # Installs into $HOME/.local/bin
 install: build
     cp './target/release/luma' $HOME/.local/bin/
+
+# Prints the logs
+log:
+    bat $HOME/.cache/luma.log

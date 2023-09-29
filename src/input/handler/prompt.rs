@@ -1,5 +1,6 @@
+use crate::event::key::Key;
+use crate::mode::PromptData;
 use crate::prelude::*;
-use crate::{input::Key, mode::PromptData};
 
 use super::Handler;
 

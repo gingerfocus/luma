@@ -1,3 +1,6 @@
+#[macro_use]
+pub mod globals;
+
 use futures::executor::block_on;
 
 use crate::prelude::*;

@@ -3,7 +3,7 @@
 pub use crate::{
     app::App,
     error::LumaError,
-    input::Event,
+    event::Event,
     input::Handler,
     mode::Mode,
     state::{Luma, State},
@@ -11,6 +11,7 @@ pub use crate::{
     util, LumaMessage,
 };
 pub use std::{fs, io};
+pub use tokio::sync::{mpsc, oneshot};
 
 pub type Result<T> = core::result::Result<T, LumaError>;
 

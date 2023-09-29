@@ -1,4 +1,4 @@
-use crate::{input::Key, mode::InsertData, prelude::*};
+use crate::{event::key::Key, mode::InsertData, prelude::*};
 
 use super::Handler;
 

@@ -1,15 +1,44 @@
-mod event;
 mod handler;
-mod key;
-mod mouse;
 
-use crate::prelude::*;
+use std::time::Duration;
 
-pub use self::event::Event;
+use crate::{
+    event::mouse::{Mouse, MouseKind},
+    prelude::*,
+};
+
 pub use self::handler::Handler;
-pub use self::key::Key;
-pub use self::mouse::Mouse;
-pub use self::mouse::MouseKind;
+
+/// The main task that is spawn to process the key inputs into requests
+pub async fn process_request(
+    tx: mpsc::Sender<LumaMessage>,
+    mut rx: mpsc::Receiver<Event>,
+    mode: GlobalMode,
+) {
+    log::info!("request thread created");
+    let mut handler = Handler::new();
+
+    'read: loop {
+        let timeout = tokio::time::sleep(Duration::from_secs(2));
+
+        tokio::select! {
+            _ = tx.closed() => break 'read,
+            _ = timeout => return,
+            e = rx.recv() => {
+                if let Some(event) = e {
+                    log::trace!("got key event: {:?}", event);
+
+                    for req in handle(event, &mut handler, &mode).await {
+                        if tx.send(req).await.is_err() {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    log::info!("request thread ended");
+}
 
 pub async fn handle(event: Event, handler: &mut Handler, mode: &GlobalMode) -> Vec<LumaMessage> {
     match event {
@@ -36,11 +65,11 @@ fn handle_paste(paste: String, mode: &GlobalMode) -> Vec<LumaMessage> {
 async fn handle_click(click: Mouse) -> Vec<LumaMessage> {
     let Mouse { kind, .. } = click;
     match kind {
-        crate::input::MouseKind::LeftClick => todo!(),
-        crate::input::MouseKind::RightClick => todo!(),
-        crate::input::MouseKind::MiddleClick => todo!(),
-        crate::input::MouseKind::Drag => todo!(),
-        crate::input::MouseKind::Scroll(i) => {
+        MouseKind::LeftClick => todo!(),
+        MouseKind::RightClick => todo!(),
+        MouseKind::MiddleClick => todo!(),
+        MouseKind::Drag => todo!(),
+        MouseKind::Scroll(i) => {
             let mut gwrite = STATE.write().await;
             if i < 0 {
                 _ = gwrite.selected_index.saturating_sub(-i as usize);
@@ -49,6 +78,6 @@ async fn handle_click(click: Mouse) -> Vec<LumaMessage> {
             }
             vec![LumaMessage::Redraw]
         }
-        crate::input::MouseKind::Nothing => vec![],
+        MouseKind::Nothing => vec![],
     }
 }

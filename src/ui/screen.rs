@@ -54,6 +54,8 @@ impl Screen {
             crossterm::execute!(io::stdout(), crossterm::terminal::LeaveAlternateScreen)?;
             // _ = self.terminal.show_cursor();
             self.is_valid = false;
+
+            crossterm::execute!(io::stdout(), crossterm::cursor::Show).unwrap();
         }
         Ok(())
     }

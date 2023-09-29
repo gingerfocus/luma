@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use tokio::time::Instant;
 
 use crate::{
+    event::key::Key,
     mode::{InsertData, PromptData},
     prelude::*,
 };
@@ -10,8 +11,6 @@ use crate::{
 mod insert;
 mod normal;
 mod prompt;
-
-use super::key::Key;
 
 type NormalFunction = fn() -> Vec<LumaMessage>;
 type InsertFunction = fn(&mut InsertData) -> Vec<LumaMessage>;

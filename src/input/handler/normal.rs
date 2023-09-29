@@ -1,10 +1,9 @@
 use futures::executor::block_on;
 use tokio::sync::oneshot;
 
+use crate::event::key::Key;
 use crate::mode::PromptResponse;
 use crate::prelude::*;
-
-use crate::input::Key;
 
 use super::Handler;
 
@@ -12,7 +11,7 @@ pub fn add_all(h: &mut Handler) {
     h.add_normal_handlers([Key::Char('q'), Key::Ctrl('c')], exit);
 
     // h.add_normal_handler(Key::Char('i'), go_insert);
-    // h.add_normal_handler(Key::Char('e'), go_edit);
+    h.add_normal_handler(Key::Char('e'), go_edit);
 
     h.add_normal_handlers([Key::Down, Key::Char('j')], move_down);
     h.add_normal_handlers([Key::Up, Key::Char('k')], move_up);
@@ -36,60 +35,53 @@ fn exit() -> Vec<LumaMessage> {
     vec![LumaMessage::Exit]
 }
 
-// fn go_edit() -> Option<LumaMessage> {
-//     let read = STATE.read().unwrap();
-//     let tab = read.selected_tab;
-//     let index = read.selected_index;
-//     drop(read);
-//
-//     let luma = LUMA.read().unwrap();
-//     let link = luma.get_index(tab).unwrap().1.get(index)?;
-//
-//     let default = format!(
-//         "Name: {}\nLink: {}\nFile: {}\nArtist:{}\n",
-//         &link.name,
-//         &link.link,
-//         link.file.as_deref().unwrap_or_default(),
-//         link.artist.as_deref().unwrap_or_default()
-//     );
-//     drop(luma);
-//
-//     let (tx, rx) = oneshot::channel::<String>();
-//
-//     tokio::spawn(async move {
-//         if let Ok(resp) = rx.await {
-//             let mut res: Vec<&str> = resp.lines().map(|l| l.split_once(':').unwrap().1).collect();
-//             let file = res.pop().unwrap(); // index 3
-//             let artist = res.pop().unwrap(); // index 2
-//             let name = res.pop().unwrap(); // index 1
-//             let link = res.pop().unwrap(); // index 0
-//
-//             let (tab, index) = {
-//                 let gread = STATE.read().unwrap();
-//                 (gread.selected_tab, gread.selected_index)
-//             };
-//
-//             let mut wluma = LUMA.write().unwrap();
-//             let l = wluma.get_index_mut(tab).unwrap().1.get_mut(index).unwrap();
-//
-//             l.name = name.to_string();
-//             l.link = link.to_string();
-//             l.file = file.try_into().ok();
-//             l.artist = artist.try_into().ok();
-//         }
-//     });
-//
-//     LumaMessage::AskQuestion(
-//         crate::QuestionComponents {
-//             name: "Edit Link".into(),
-//             _question: crate::QuestionType::Editor,
-//             default,
-//         },
-//         tx,
-//     )
-//     .into()
-//     // Some(LumaMessage::AskQuestion(q, &(edit_link as fn(Answer))))
-// }
+fn go_edit() -> Vec<LumaMessage> {
+    let (tab, index) = util::blocking_get_tab_and_index();
+
+    let luma = util::globals::get_luma!();
+    let link = luma.get_index(tab).unwrap().1.get(index).unwrap();
+
+    let default = format!(
+        "Name: {}\nLink: {}\nFile: {}\nArtist:{}\n",
+        &link.name,
+        &link.link,
+        link.file.as_deref().unwrap_or_default(),
+        link.artist.as_deref().unwrap_or_default()
+    );
+    drop(luma);
+
+    let (tx, rx) = oneshot::channel::<String>();
+
+    let h = tokio::spawn(async move {
+        if let Ok(resp) = rx.await {
+            let mut res: Vec<&str> = resp.lines().map(|l| l.split_once(':').unwrap().1).collect();
+            let file = res.pop().unwrap(); // index 3
+            let artist = res.pop().unwrap(); // index 2
+            let name = res.pop().unwrap(); // index 1
+            let link = res.pop().unwrap(); // index 0
+
+            let (tab, index) = util::get_tab_and_index().await;
+
+            let mut luma = LUMA.write().await;
+            let l = luma.get_index_mut(tab).unwrap().1.get_mut(index).unwrap();
+
+            l.name = name.to_string();
+            l.link = link.to_string();
+            l.file = file.try_into().ok();
+            l.artist = artist.try_into().ok();
+        }
+        vec![]
+    });
+
+    vec![
+        LumaMessage::OpenEditor {
+            text: default,
+            resp: tx,
+        },
+        LumaMessage::AddHandle(h),
+    ]
+    // Some(LumaMessage::AskQuestion(q, &(edit_link as fn(Answer))))
+}
 
 // fn go_insert() -> Vec<LumaMessage> {
 //     let (tab, index) = block_on(util::get_tab_and_index());
