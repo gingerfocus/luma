@@ -2,40 +2,21 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-const ABOUT: &str = "Tesing this about thing";
-
 #[derive(Parser, Debug)]
 #[clap(name = "Luma", author, version, about)]
-#[clap(long_about = ABOUT)]
 pub struct Args {
-    // Commands for podcast
-    // #[command(subcommand)]
-    // pub action: Option<Action>,
-    /// the file to use as input for thing
-    // #[arg(short = 'i', long)]
+    /// The input file
     #[arg()]
     pub file: PathBuf,
-    // Not showing album cover. default is showing.
-    // #[arg(short = 'c', long)]
-    // pub disable_cover: bool,
-    // Not showing discord representation. default is showing.
-    // #[arg(short, long)]
-    // pub disable_discord: bool,
-}
 
-// #[derive(Subcommand, Debug)]
-// pub enum Action {
-//     /// Import feeds from opml file.
-//     Export {
-//         #[arg(value_name = "FILE")]
-//         file: String,
-//     },
-//     /// Export feeds to opml file.
-//     Import {
-//         #[arg(value_name = "FILE")]
-//         file: String,
-//     },
-// }
+    /// Enables logging
+    #[arg(short, long, default_value_t = false)]
+    pub log: bool,
+
+    /// Path where log files should be written
+    #[arg(short = 'L', long, value_name = "FILE")]
+    pub log_file: Option<PathBuf>,
+}
 
 // mod thinking {
 //     use std::time::Duration;

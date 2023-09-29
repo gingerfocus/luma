@@ -49,4 +49,8 @@ impl Link {
             color: None,
         }
     }
+
+    pub fn stub() -> Link {
+        Default::default()
+    }
 }

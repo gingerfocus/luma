@@ -23,7 +23,7 @@ pub async fn process_request(
 
         tokio::select! {
             _ = tx.closed() => break 'read,
-            _ = timeout => return,
+            _ = timeout => continue,
             e = rx.recv() => {
                 if let Some(event) = e {
                     log::trace!("got key event: {:?}", event);

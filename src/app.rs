@@ -3,7 +3,7 @@ use tui::{
     widgets::{Clear, ListState},
 };
 
-use crate::{prelude::*, ui::screen::Screen};
+use crate::prelude::*;
 
 pub struct App {
     pub run: bool,
@@ -22,17 +22,26 @@ impl App {
 
         Ok(Self {
             run: true,
-            screen: Screen::default(),
+            screen: Default::default(),
             terminal,
         })
     }
 
     pub fn init(&mut self) -> Result<()> {
-        let Rect { width, height, .. } = self.terminal.size()?;
-        self.screen.configure_surface(width, height);
+        self.run = true;
+
         self.screen.init()?;
 
-        self.run = true;
+        let Rect { width, height, .. } = self.terminal.size()?;
+        self.screen.configure_surface(width, height);
+
+        Ok(())
+    }
+
+    pub fn deinit(&mut self) -> Result<()> {
+        self.run = false;
+
+        self.screen.deinit()?;
 
         Ok(())
     }
@@ -126,14 +135,6 @@ impl App {
         })?;
 
         log::debug!("redraw done");
-
-        Ok(())
-    }
-
-    pub fn deinit(&mut self) -> Result<()> {
-        self.screen.deinit()?;
-
-        self.run = false;
 
         Ok(())
     }

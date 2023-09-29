@@ -4,13 +4,14 @@ use tokio::sync::oneshot;
 use crate::event::key::Key;
 use crate::mode::PromptResponse;
 use crate::prelude::*;
+use crate::state::Link;
 
 use super::Handler;
 
 pub fn add_all(h: &mut Handler) {
     h.add_normal_handlers([Key::Char('q'), Key::Ctrl('c')], exit);
 
-    // h.add_normal_handler(Key::Char('i'), go_insert);
+    h.add_normal_handler(Key::Char('i'), go_insert);
     h.add_normal_handler(Key::Char('e'), go_edit);
 
     h.add_normal_handlers([Key::Down, Key::Char('j')], move_down);
@@ -28,84 +29,106 @@ pub fn add_all(h: &mut Handler) {
     h.add_normal_handler(Key::Char('1'), numeric_key_option::<0>);
     h.add_normal_handler(Key::Char('2'), numeric_key_option::<1>);
     h.add_normal_handler(Key::Char('3'), numeric_key_option::<2>);
-    h.add_normal_handler(Key::Char('4'), numeric_key_option::<3>);
+    // h.add_normal_handler(Key::Char('4'), numeric_key_option::<3>);
 }
 
 fn exit() -> Vec<LumaMessage> {
     vec![LumaMessage::Exit]
 }
 
+// It works (kinda)
 fn go_edit() -> Vec<LumaMessage> {
+    log::info!("starting edit process");
     let (tab, index) = util::blocking_get_tab_and_index();
 
-    let luma = util::globals::get_luma!();
-    let link = luma.get_index(tab).unwrap().1.get(index).unwrap();
-
-    let default = format!(
-        "Name: {}\nLink: {}\nFile: {}\nArtist:{}\n",
-        &link.name,
-        &link.link,
-        link.file.as_deref().unwrap_or_default(),
-        link.artist.as_deref().unwrap_or_default()
-    );
-    drop(luma);
+    let text = {
+        let luma = util::globals::get_luma!();
+        let link = luma.get_index(tab).unwrap().1.get(index).unwrap();
+        yaml::to_string(link).unwrap()
+    };
 
     let (tx, rx) = oneshot::channel::<String>();
 
     let h = tokio::spawn(async move {
         if let Ok(resp) = rx.await {
-            let mut res: Vec<&str> = resp.lines().map(|l| l.split_once(':').unwrap().1).collect();
-            let file = res.pop().unwrap(); // index 3
-            let artist = res.pop().unwrap(); // index 2
-            let name = res.pop().unwrap(); // index 1
-            let link = res.pop().unwrap(); // index 0
+            log::debug!("got data from editor");
+            if let Ok(link) = yaml::from_str(&resp) {
+                let (tab, index) = util::get_tab_and_index().await;
 
-            let (tab, index) = util::get_tab_and_index().await;
+                let mut luma = LUMA.write().await;
+                let l = luma.get_index_mut(tab).unwrap().1.get_mut(index).unwrap();
+                log::debug!("writing new data to thing");
 
-            let mut luma = LUMA.write().await;
-            let l = luma.get_index_mut(tab).unwrap().1.get_mut(index).unwrap();
-
-            l.name = name.to_string();
-            l.link = link.to_string();
-            l.file = file.try_into().ok();
-            l.artist = artist.try_into().ok();
+                *l = link;
+            }
         }
-        vec![]
+        vec![LumaMessage::Redraw]
     });
 
+    log::debug!("sending edtior open request");
+
     vec![
-        LumaMessage::OpenEditor {
-            text: default,
-            resp: tx,
-        },
+        LumaMessage::OpenEditor { text, resp: tx },
         LumaMessage::AddHandle(h),
     ]
-    // Some(LumaMessage::AskQuestion(q, &(edit_link as fn(Answer))))
 }
 
-// fn go_insert() -> Vec<LumaMessage> {
-//     let (tab, index) = block_on(util::get_tab_and_index());
-//
-//     let (tx_link, rx_link) = oneshot::channel();
-//     let (tx_name, rx_name) = oneshot::channel();
-//
-//     let _h = tokio::spawn(async move {
-//         log::info!("insert request waiting on responses");
-//         let name = rx_name.await.unwrap();
-//         log::info!("got name: {}", name);
-//         let link = rx_link.await.unwrap();
-//         log::info!("got link: {}", link);
-//
-//         if let Some(set) = block_on(async { LUMA.write().await }).get_index_mut(tab) {
-//             set.1.insert(index, Link::new(name, link))
-//         }
-//     });
-//
-//     vec![LumaMessage::SetMode(Mode::Insert(vec![
-//         ("link: ".to_string(), String::new(), tx_link),
-//         ("name: ".into(), String::new(), tx_name),
-//     ]))]
-// }
+fn go_insert() -> Vec<LumaMessage> {
+    log::info!("starting insert process");
+
+    let text = {
+        let link = Link::stub();
+        yaml::to_string(&link).unwrap()
+    };
+
+    let (tx, rx) = oneshot::channel::<String>();
+
+    let h = tokio::spawn(async move {
+        if let Ok(resp) = rx.await {
+            log::debug!("got data from editor");
+            if let Ok(link) = yaml::from_str(&resp) {
+                let (tab, index) = util::get_tab_and_index().await;
+
+                log::debug!("writing new data to thing");
+                LUMA.write()
+                    .await
+                    .get_index_mut(tab)
+                    .unwrap()
+                    .1
+                    .insert(index, link);
+            }
+        }
+        vec![LumaMessage::Redraw]
+    });
+
+    log::debug!("sending edtior open request");
+
+    vec![
+        LumaMessage::OpenEditor { text, resp: tx },
+        LumaMessage::AddHandle(h),
+    ]
+    // let (tab, index) = block_on(util::get_tab_and_index());
+    //
+    // let (tx_link, rx_link) = oneshot::channel();
+    // let (tx_name, rx_name) = oneshot::channel();
+    //
+    // let _h = tokio::spawn(async move {
+    //     log::info!("insert request waiting on responses");
+    //     let name = rx_name.await.unwrap();
+    //     log::info!("got name: {}", name);
+    //     let link = rx_link.await.unwrap();
+    //     log::info!("got link: {}", link);
+    //
+    //     if let Some(set) = block_on(async { LUMA.write().await }).get_index_mut(tab) {
+    //         set.1.insert(index, Link::new(name, link))
+    //     }
+    // });
+    //
+    // vec![LumaMessage::SetMode(Mode::Insert(vec![
+    //     ("link: ".to_string(), String::new(), tx_link),
+    //     ("name: ".into(), String::new(), tx_name),
+    // ]))]
+}
 
 fn move_down() -> Vec<LumaMessage> {
     log::trace!("Moving cursor down");
@@ -274,7 +297,11 @@ fn delete() -> Vec<LumaMessage> {
 //         _ => todo!(),
 //     }
 // }
+
 fn numeric_key_option<const N: usize>() -> Vec<LumaMessage> {
-    block_on(async { STATE.write().await }).selected_tab = N;
+    let max_value = util::globals::get_luma!().len();
+    if N < max_value {
+        block_on(async { STATE.write().await }).selected_tab = N;
+    }
     vec![LumaMessage::Redraw]
 }

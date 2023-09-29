@@ -18,10 +18,26 @@ pub struct Screen {
 impl Screen {
     pub fn init(&mut self) -> Result<()> {
         if !self.is_valid {
-            crossterm::terminal::enable_raw_mode().unwrap();
+            log::debug!("enabaling screen");
             crossterm::execute!(io::stdout(), crossterm::terminal::EnterAlternateScreen)?;
+            crossterm::terminal::enable_raw_mode()?;
 
             self.is_valid = true;
+            // crossterm::execute!(io::stdout(), crossterm::cursor::Hide).unwrap();
+        }
+        Ok(())
+    }
+
+    pub fn deinit(&mut self) -> Result<()> {
+        if self.is_valid {
+            log::debug!("disbaling screen");
+            // restore terminal, results are ignored beacuse we are leaving anyway
+            crossterm::execute!(io::stdout(), crossterm::terminal::LeaveAlternateScreen)?;
+            crossterm::terminal::disable_raw_mode()?;
+            // _ = self.terminal.show_cursor();
+            self.is_valid = false;
+
+            // crossterm::execute!(io::stdout(), crossterm::cursor::Show).unwrap();
         }
         Ok(())
     }
@@ -45,18 +61,5 @@ impl Screen {
             self.side_pane = div[0];
             self.preview_pane = div[1];
         }
-    }
-
-    pub fn deinit(&mut self) -> Result<()> {
-        if self.is_valid {
-            // restore terminal, results are ignored beacuse we are leaving anyway
-            crossterm::terminal::disable_raw_mode()?;
-            crossterm::execute!(io::stdout(), crossterm::terminal::LeaveAlternateScreen)?;
-            // _ = self.terminal.show_cursor();
-            self.is_valid = false;
-
-            crossterm::execute!(io::stdout(), crossterm::cursor::Show).unwrap();
-        }
-        Ok(())
     }
 }

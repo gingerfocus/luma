@@ -17,48 +17,68 @@ pub async fn read_events(
 ) {
     log::info!("event thread created");
 
-    let mut screen = Screen::default();
-    screen.init().unwrap();
-
     let mut reader = crossterm::event::EventStream::new();
     let mut paused = false;
     let mut run = true;
 
     while run {
-        let delay = tokio::time::sleep(Duration::from_secs(1));
-        let event_steam = futures::StreamExt::next(&mut reader);
-
-        let mut event = None;
-
-        tokio::select! {
-            e = hangup_requests.recv() => {
-                match e {
-                    Some(EventReaderRequest::Pause(resp)) => {
-                        resp.send(EventThreadSuspendResponse::Ok).unwrap();
-                        screen.deinit().unwrap();
-                        paused = true;
+        if paused {
+            log::debug!("waiting for pause to end");
+            tokio::select! {
+                e = hangup_requests.recv() => {
+                    match e {
+                        Some(EventReaderRequest::Pause(resp)) => {
+                            resp.send(EventThreadSuspendResponse::Ok).unwrap();
+                            paused = true;
+                        }
+                        Some(EventReaderRequest::Resume) => paused = false,
+                        Some(EventReaderRequest::Close) => {
+                            log::debug!("event reader got close request");
+                            run = false;
+                        },
+                        None => {},
                     }
-                    Some(EventReaderRequest::Resume) => {
-                        screen.init().unwrap();
-                        paused = false;
+                },
+                _ = tx.closed() => {
+                    log::debug!("consumer gone. event reader exiting");
+                    run = false;
+                },
+            };
+        } else {
+            log::debug!("running poll routine");
+            let delay = tokio::time::sleep(Duration::from_secs(1));
+            let event_steam = futures::StreamExt::next(&mut reader);
+
+            let mut event = None;
+            tokio::select! {
+                e = hangup_requests.recv() => {
+                    match e {
+                        Some(EventReaderRequest::Pause(resp)) => {
+                            resp.send(EventThreadSuspendResponse::Ok).unwrap();
+                            paused = true;
+                        }
+                        Some(EventReaderRequest::Resume) => {
+                            paused = false;
+                            // TODO: when resuming one phantom event is read from the end of the last terminal
+                            // app
+                        },
+                        Some(EventReaderRequest::Close) => run = false,
+                        None => {},
                     }
-                    Some(EventReaderRequest::Close) => run = false,
-                    None => {},
+                },
+                _ = tx.closed() => run = false,
+                _ = delay => event = Some(Event::Tick),
+                e = event_steam => event = e.and_then(|res| res.ok().map(|ev| ev.into())),
+            };
+
+            if let Some(ev) = event {
+                if tx.send(ev).await.is_err() {
+                    run = false;
                 }
-            },
-            _ = tx.closed() => run = false,
-            _ = delay, if !paused => event = Some(Event::Tick),
-            e = event_steam, if !paused => event = e.and_then(|res| res.ok().map(|ev| ev.into())),
-        };
-
-        if let Some(ev) = event {
-            if tx.send(ev).await.is_err() {
-                run = false;
             }
         }
     }
 
-    screen.deinit().unwrap();
     log::info!("event thread ended");
 }
 

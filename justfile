@@ -18,7 +18,8 @@ publish:
     cargo test -q
 
 # Runs the code and then shows resulting logs
-debug: run log
+debug: && log
+    cargo run -- -l @INDEX.json
 
 # Runs the code with example data
 run:

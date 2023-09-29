@@ -2,6 +2,8 @@ pub mod render;
 pub mod screen;
 pub mod traits;
 
+use std::time::Duration;
+
 use tokio::task::JoinHandle;
 
 use crate::prelude::*;
@@ -71,13 +73,18 @@ async fn handle_msg(
             app.draw(&mode.read().unwrap()).unwrap();
         }
         LumaMessage::OpenEditor { text, resp } => {
-            app.deinit().unwrap();
+            log::debug!("Renderer opening editor");
 
             let (tx, rx) = oneshot::channel();
             event_tx
                 .send(crate::event::EventReaderRequest::Pause(tx))
                 .await
                 .unwrap();
+
+            app.deinit().unwrap();
+
+            // reader needs some time to ready the terminal so we wait a bit
+            tokio::time::sleep(Duration::from_millis(2)).await;
 
             if let Some(msg) = match rx.await {
                 Ok(crate::event::EventThreadSuspendResponse::Ok) => None,
@@ -94,16 +101,30 @@ async fn handle_msg(
                 panic!("{}", msg);
             }
 
-            let ans = {
-                let question = requestty::Question::editor("Editor").default(text).build();
-                requestty::prompt_one(question)
-                    .unwrap()
-                    .as_string()
-                    .unwrap()
-                    .to_owned()
+            log::debug!("paused event channel sucsessfully");
+
+            let res = {
+                let question = requestty::Question::editor("Editor")
+                    .default(text)
+                    .extension(".yaml")
+                    .build();
+
+                match requestty::prompt_one(question) {
+                    Ok(requestty::Answer::String(s)) => Some(s),
+                    Ok(_) => unreachable!(),
+                    Err(e) => {
+                        log::error!("Failed to ask question: {e}");
+                        None
+                    }
+                }
             };
 
+            log::debug!("asked question");
+
             app.init().unwrap();
+
+            // event thream reads phantom events so giving it some breathing room helps
+            tokio::time::sleep(Duration::from_millis(2)).await;
 
             event_tx
                 .send(crate::event::EventReaderRequest::Resume)
@@ -112,7 +133,9 @@ async fn handle_msg(
 
             app.redraw(&mode.read().unwrap()).unwrap();
 
-            resp.send(ans).unwrap();
+            if let Some(ans) = res {
+                resp.send(ans).unwrap();
+            }
         }
         LumaMessage::AddHandle(h) => handles.push(h),
     }

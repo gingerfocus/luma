@@ -37,16 +37,13 @@ pub enum LumaMessage {
     },
 }
 
-/// The main function is the cordinator for our tokio rt. It spawns a number of
-/// task that all coridnate to make the app run:
-/// - The render thread
-/// - The input thread
-/// - The worker/processor thread
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = crate::cli::Args::parse();
 
-    init_logger().await?;
+    if args.log {
+        init_logger(args.log_file).await?;
+    }
 
     *LUMA.write().await = json::from_str(&fs::read_to_string(&args.file)?)?;
     let mode: GlobalMode = Default::default();
@@ -82,12 +79,14 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn init_logger() -> Result<()> {
-    let mut log_file = env::var("XDG_CACHE_HOME").unwrap_or_else(|_| {
-        let home = env::var("HOME").expect("You don't have a $HOME???");
-        format!("{home}/.cache")
+async fn init_logger(file: Option<PathBuf>) -> Result<()> {
+    let log_file = file.unwrap_or_else(|| {
+        PathBuf::from(env::var("XDG_CACHE_HOME").unwrap_or_else(|_| {
+            let home = env::var("HOME").expect("You don't have a $HOME???");
+            format!("{home}/.cache")
+        }))
+        .join("luma.log")
     });
-    log_file.push_str("/luma.log");
 
     simplelog::WriteLogger::init(
         simplelog::LevelFilter::Debug,
