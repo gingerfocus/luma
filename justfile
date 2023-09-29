@@ -19,11 +19,11 @@ publish:
 
 # Runs the code and then shows resulting logs
 debug: && log
-    cargo run -- -l @INDEX.json
+    cargo run -- -l ~/dox/luma.json
 
 # Runs the code with example data
 run:
-    cargo run -- @INDEX.json
+    cargo run -- ~/dox/luma.json
 
 # Installs into $HOME/.local/bin
 install: build

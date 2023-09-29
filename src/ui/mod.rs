@@ -2,7 +2,7 @@ pub mod render;
 pub mod screen;
 pub mod traits;
 
-use std::time::Duration;
+use std::{io::Write, time::Duration};
 
 use tokio::task::JoinHandle;
 
@@ -103,23 +103,25 @@ async fn handle_msg(
 
             log::debug!("paused event channel sucsessfully");
 
-            let res = {
-                let question = requestty::Question::editor("Editor")
-                    .default(text)
-                    .extension(".yaml")
-                    .build();
+            const LUMA_TEMPFILE: &str = "/tmp/luma-edit.yaml";
+            {
+                let mut f = fs::File::create(LUMA_TEMPFILE).unwrap();
+                f.write_all(text.as_bytes()).unwrap();
+                log::debug!("wrote inital data to buffer");
+            }
 
-                match requestty::prompt_one(question) {
-                    Ok(requestty::Answer::String(s)) => Some(s),
-                    Ok(_) => unreachable!(),
-                    Err(e) => {
-                        log::error!("Failed to ask question: {e}");
-                        None
-                    }
-                }
-            };
+            let _ = tokio::process::Command::new("nvim")
+                .arg(LUMA_TEMPFILE)
+                .spawn()
+                .unwrap()
+                .wait()
+                .await
+                .unwrap()
+                .success();
 
             log::debug!("asked question");
+
+            let res = fs::read(LUMA_TEMPFILE).unwrap();
 
             app.init().unwrap();
 
@@ -133,7 +135,7 @@ async fn handle_msg(
 
             app.redraw(&mode.read().unwrap()).unwrap();
 
-            if let Some(ans) = res {
+            if let Ok(ans) = String::from_utf8(res) {
                 resp.send(ans).unwrap();
             }
         }
