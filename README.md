@@ -1,5 +1,5 @@
 # Luma
-Link viewer to open and edit links in a yaml file.
+Program to unite the internet and filesystem.
 
 ## Building
 ```sh
@@ -10,9 +10,14 @@ just build
 ## Testing
 ```sh
 just publish
-OR
+# OR
 cargo test
 cargo clippy
+```
+
+## Installing
+```sh
+just install
 ```
 
 ## Development
@@ -25,24 +30,16 @@ arranged by importance.
 
 ### Next
 - [X] saving
-- [X] pasting
-- [X] better error handling
-- [ ] multiple input source (some static some dynamic)
+- [X] error handling
 - [ ] use $OPENER
-- [ ] simple mpd client
 
 ### For 1.0
-- [ ] color
+- [X] color
 - [ ] header data from site for links
 - [ ] editing in external editor
 - [ ] highlights for tags
 - [ ] vaults of notes
 - [ ] importing text files
-- [ ] better mpd (custom client?)
-
-### Random/Long Term Ideas
-
-- [ ] cli options
 - [ ] importing binary files
 - [ ] downloading files
 - [ ] tagging metadata

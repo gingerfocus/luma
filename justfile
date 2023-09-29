@@ -1,22 +1,30 @@
-default: # List avalable options
+# Lists avalable options
+default:
     @just -l
 
-loc: # Count the lines of code in this project
+# Counts the number lines of code
+loc:
     find src/ -name "*.rs" | xargs cat | wc -l
 
-build: # build the project
-    cargo build
+# Builds the project
+build:
+    cargo build --release
 
-publish: # format lint and test the project
+# Formats, lints, and tests the project
+publish:
     cargo fmt
     cargo clippy -q -- -D warnings
     ! rg 'blocking_read' src/
     cargo test -q
 
-debug:
-    RUST_LOG=debug cargo run -- @INDEX.json
-    bat luma.log
+# Runs the code and then shows resulting logs
+debug: run
+    bat $HOME/.cache/luma.log
 
-trace:
-    RUST_LOG=trace cargo run -- @INDEX.json
-    bat luma.log
+# Runs the code with example data
+run:
+    cargo run -- @INDEX.json
+
+# Installs into $HOME/.local/bin
+install: build
+    cp './target/release/luma' $HOME/.local/bin/

@@ -1,6 +1,5 @@
 //! A Program to unite the web and filesystem
 
-#![feature(lazy_cell)]
 // #![allow(unused)]
 #![warn(unused_crate_dependencies)]
 // #![warn(missing_docs)]
@@ -9,43 +8,44 @@ pub mod app;
 // pub mod aud;
 pub mod cli;
 pub mod error;
-mod input;
+pub mod input;
 pub mod mode;
 pub mod prelude;
 pub mod state;
-#[macro_use]
-pub mod util;
 pub mod ui;
+pub mod util;
 
-use std::{path::PathBuf, time::Duration};
+use std::{env, path::PathBuf, time::Duration};
 
 use crate::prelude::*;
 use clap::Parser;
-use tokio::sync::{mpsc, oneshot};
+use tokio::{sync::mpsc, task::JoinHandle};
 
 pub enum LumaMessage {
     Redraw,
     Exit,
     SetMode(Mode),
-    AskQuestion(QuestionComponents, oneshot::Sender<String>),
+    AddHandle(JoinHandle<Vec<LumaMessage>>),
+    // AskQuestion(QuestionComponents, oneshot::Sender<String>),
 }
 
-pub struct QuestionComponents {
-    name: String,
-    _question: QuestionType,
-    default: String,
-}
-
-pub enum QuestionType {
-    Editor,
-}
+// pub struct QuestionComponents {
+//     name: String,
+//     _question: QuestionType,
+//     default: String,
+// }
+// pub enum QuestionType {
+//     Editor,
+// }
 
 async fn init_logger() -> Result<()> {
-    env_logger::builder()
-        .target(env_logger::Target::Pipe(Box::new(fs::File::create(
-            "./luma.log",
-        )?)))
-        .init();
+    let home = env::var("HOME").expect("You don't have a $HOME???");
+    simplelog::WriteLogger::init(
+        simplelog::LevelFilter::Debug,
+        simplelog::Config::default(),
+        fs::File::create(format!("{home}/.cache/luma.log"))?,
+    )
+    .unwrap();
 
     log::debug!("Luma log init");
     Ok(())
@@ -150,14 +150,10 @@ async fn process_request(
                 if let Some(event) = e {
                     log::trace!("got key event: {:?}", event);
 
-                    let Some(req) = ({
-                        input::handle(event, &mut handler, &mode).await
-                    }) else {
-                        continue;
-                    };
-
-                    if tx.send(req).await.is_err() {
-                        break;
+                    for req in input::handle(event, &mut handler, &mode).await {
+                        if tx.send(req).await.is_err() {
+                            break;
+                        }
                     }
                 }
             }
@@ -169,46 +165,71 @@ async fn process_request(
 async fn render_screen(mut rx: mpsc::Receiver<LumaMessage>, mode: GlobalMode) {
     log::info!("render thread created");
 
+    let mut handles: Vec<JoinHandle<Vec<LumaMessage>>> = vec![];
     let mut app = App::new().unwrap();
     app.init().unwrap();
 
     // --------------------------------------------
     app.draw(&mode.read().unwrap()).unwrap();
 
-    while app.run {
-        match rx.recv().await {
-            Some(LumaMessage::Redraw) => {
+    async fn handle_msg(
+        msg: LumaMessage,
+        app: &mut App,
+        mode: &GlobalMode,
+        handles: &mut Vec<JoinHandle<Vec<LumaMessage>>>,
+    ) {
+        match msg {
+            LumaMessage::Redraw => {
                 app.draw(&mode.read().unwrap()).unwrap();
             }
-            Some(LumaMessage::Exit) => app.run = false,
-            Some(LumaMessage::SetMode(m)) => {
+            LumaMessage::Exit => {
+                app.run = false;
+            }
+            LumaMessage::SetMode(m) => {
                 log::info!("waiting on write for mode.");
                 *mode.write().unwrap() = m;
                 app.draw(&mode.read().unwrap()).unwrap();
             }
-            Some(LumaMessage::AskQuestion(comps, resp)) => {
-                app.deinit().unwrap();
-                let q = requestty::Question::editor(comps.name)
-                    .default(comps.default)
-                    .build();
-                let ans = requestty::prompt_one(q)
-                    .unwrap()
-                    .as_string()
-                    .unwrap()
-                    .to_owned();
-                resp.send(ans).unwrap();
-                app.init().unwrap();
-            }
-            None => {}
+            // LumaMessage::AskQuestion(comps, resp) => {
+            //     app.deinit().unwrap();
+            //     let q = requestty::Question::editor(comps.name)
+            //         .default(comps.default)
+            //         .build();
+            //     let ans = requestty::prompt_one(q)
+            //         .unwrap()
+            //         .as_string()
+            //         .unwrap()
+            //         .to_owned();
+            //     resp.send(ans).unwrap();
+            //     app.init().unwrap();
+            // }
+            LumaMessage::AddHandle(h) => handles.push(h),
+        }
+    }
+
+    while app.run {
+        if let Some(msg) = rx.recv().await {
+            handle_msg(msg, &mut app, &mode, &mut handles).await;
         }
 
-        // LumaMessage::AskQuestion(q, callback) => {
-        //     app.deinit()?;
-        //     let ans = requestty::prompt_one(q).unwrap();
-        //     callback(ans);
-        //     app.init()?;
-        //     app.redraw()?;
+        let mut new_handles = vec![];
+        for h in handles {
+            if h.is_finished() {
+                if let Ok(msgs) = h.await {
+                    for msg in msgs {
+                        handle_msg(msg, &mut app, &mode, &mut new_handles).await;
+                    }
+                }
+            } else {
+                new_handles.push(h);
+            }
+        }
+        handles = new_handles;
+
+        // if let Ok(Some(msg)) = block_on(h) {
+        //     handle_msg(msg, &mut app, &mode, &mut handles);
         // }
+        // None
     }
 
     app.deinit().unwrap();

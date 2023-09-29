@@ -13,9 +13,9 @@ mod prompt;
 
 use super::key::Key;
 
-type NormalFunction = fn() -> Option<LumaMessage>;
-type InsertFunction = fn(&mut InsertData) -> Option<LumaMessage>;
-type PromptFunction = fn(&mut PromptData) -> Option<LumaMessage>;
+type NormalFunction = fn() -> Vec<LumaMessage>;
+type InsertFunction = fn(&mut InsertData) -> Vec<LumaMessage>;
+type PromptFunction = fn(&mut PromptData) -> Vec<LumaMessage>;
 
 #[derive(Default)]
 pub struct Handler {
@@ -70,23 +70,29 @@ impl Handler {
         }
     }
 
-    pub fn handle(&mut self, key: Key, mode: &GlobalMode) -> Option<LumaMessage> {
+    pub fn handle(&mut self, key: Key, mode: &GlobalMode) -> Vec<LumaMessage> {
         match &mut mode.write().unwrap() as &mut Mode {
-            Mode::Normal => self.normal_keys.get(&key).and_then(|f| f()),
+            Mode::Normal => match self.normal_keys.get(&key) {
+                Some(f) => f(),
+                None => vec![],
+            },
             Mode::Insert(data) => match self.insert_keys.get(&key) {
                 Some(f) => f(data),
                 None => write_char_to_insert_data(key, data),
             },
-            Mode::Prompt(data) => self.prompt_keys.get(&key).and_then(|f| f(data)),
+            Mode::Prompt(data) => match self.prompt_keys.get(&key) {
+                Some(f) => f(data),
+                None => vec![],
+            },
         }
     }
 }
 
-fn write_char_to_insert_data(k: Key, data: &mut InsertData) -> Option<LumaMessage> {
+fn write_char_to_insert_data(k: Key, data: &mut InsertData) -> Vec<LumaMessage> {
     if let Key::Char(c) = k {
         data.last_mut().unwrap().1.push(c);
-        LumaMessage::Redraw.into()
+        vec![LumaMessage::Redraw]
     } else {
-        None
+        vec![]
     }
 }

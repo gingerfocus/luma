@@ -8,20 +8,21 @@ pub fn add_all(h: &mut Handler) {
     h.add_insert_handler(Key::Backspace, delete);
 }
 
-fn delete(data: &mut InsertData) -> Option<LumaMessage> {
+fn delete(data: &mut InsertData) -> Vec<LumaMessage> {
     data.last_mut().unwrap().1.pop();
-    LumaMessage::Redraw.into()
+    vec![LumaMessage::Redraw]
 }
 
-fn complete(data: &mut InsertData) -> Option<LumaMessage> {
+fn complete(data: &mut InsertData) -> Vec<LumaMessage> {
     if let Some((_prompt, buffer, resp)) = data.pop() {
         resp.send(buffer).unwrap();
-        LumaMessage::Redraw.into()
+        vec![LumaMessage::Redraw]
     } else {
-        LumaMessage::SetMode(Mode::Normal).into()
+        vec![LumaMessage::SetMode(Mode::Normal)]
     }
 }
 
-fn cancel(_data: &mut InsertData) -> Option<LumaMessage> {
-    LumaMessage::SetMode(Mode::Normal).into()
+fn cancel(_data: &mut InsertData) -> Vec<LumaMessage> {
+    // TODO: inform the call back it has been canceled
+    vec![LumaMessage::SetMode(Mode::Normal)]
 }

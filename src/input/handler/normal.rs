@@ -4,28 +4,14 @@ use tokio::sync::oneshot;
 use crate::mode::PromptResponse;
 use crate::prelude::*;
 
-// macro_rules! numeric_key_option {
-//     ( $self:ident, $luma:ident, $x:expr ) => {{
-//         let name: String = match $luma.get_index($x) {
-//             Some(n) => n.0.clone(),
-//             None => return LumaMessage::Nothing,
-//         };
-//
-//         let ind = $crate::ui::screen::IndexedPair { index: $x, name };
-//         $self.screen.select_tab(ind);
-//         LumaMessage::Redraw
-//     }};
-// }
-
 use crate::input::Key;
-use crate::state::Link;
 
 use super::Handler;
 
 pub fn add_all(h: &mut Handler) {
     h.add_normal_handlers([Key::Char('q'), Key::Ctrl('c')], exit);
 
-    h.add_normal_handler(Key::Char('i'), go_insert);
+    // h.add_normal_handler(Key::Char('i'), go_insert);
     // h.add_normal_handler(Key::Char('e'), go_edit);
 
     h.add_normal_handlers([Key::Down, Key::Char('j')], move_down);
@@ -38,11 +24,16 @@ pub fn add_all(h: &mut Handler) {
 
     h.add_normal_handlers([Key::Char('D'), Key::Backspace], delete);
 
-    // h.add_normal_handler(Key::Char('?'), show_help);
+    h.add_normal_handler(Key::Char('?'), show_help);
+
+    h.add_normal_handler(Key::Char('1'), numeric_key_option::<0>);
+    h.add_normal_handler(Key::Char('2'), numeric_key_option::<1>);
+    h.add_normal_handler(Key::Char('3'), numeric_key_option::<2>);
+    h.add_normal_handler(Key::Char('4'), numeric_key_option::<3>);
 }
 
-fn exit() -> Option<LumaMessage> {
-    LumaMessage::Exit.into()
+fn exit() -> Vec<LumaMessage> {
+    vec![LumaMessage::Exit]
 }
 
 // fn go_edit() -> Option<LumaMessage> {
@@ -100,33 +91,32 @@ fn exit() -> Option<LumaMessage> {
 //     // Some(LumaMessage::AskQuestion(q, &(edit_link as fn(Answer))))
 // }
 
-fn go_insert() -> Option<LumaMessage> {
-    let (tab, index) = block_on(util::get_tab_and_index());
+// fn go_insert() -> Vec<LumaMessage> {
+//     let (tab, index) = block_on(util::get_tab_and_index());
+//
+//     let (tx_link, rx_link) = oneshot::channel();
+//     let (tx_name, rx_name) = oneshot::channel();
+//
+//     let _h = tokio::spawn(async move {
+//         log::info!("insert request waiting on responses");
+//         let name = rx_name.await.unwrap();
+//         log::info!("got name: {}", name);
+//         let link = rx_link.await.unwrap();
+//         log::info!("got link: {}", link);
+//
+//         if let Some(set) = block_on(async { LUMA.write().await }).get_index_mut(tab) {
+//             set.1.insert(index, Link::new(name, link))
+//         }
+//     });
+//
+//     vec![LumaMessage::SetMode(Mode::Insert(vec![
+//         ("link: ".to_string(), String::new(), tx_link),
+//         ("name: ".into(), String::new(), tx_name),
+//     ]))]
+// }
 
-    let (tx_link, rx_link) = oneshot::channel();
-    let (tx_name, rx_name) = oneshot::channel();
-
-    let _h = tokio::spawn(async move {
-        log::info!("insert request waiting on responses");
-        let name = rx_name.await.unwrap();
-        log::info!("got name: {}", name);
-        let link = rx_link.await.unwrap();
-        log::info!("got link: {}", link);
-
-        if let Some(set) = block_on(async { LUMA.write().await }).get_index_mut(tab) {
-            set.1.insert(index, Link::new(name, link))
-        }
-    });
-
-    LumaMessage::SetMode(Mode::Insert(vec![
-        ("link: ".to_string(), String::new(), tx_link),
-        ("name: ".into(), String::new(), tx_name),
-    ]))
-    .into()
-}
-
-fn move_down() -> Option<LumaMessage> {
-    log::debug!("Moving cursor down");
+fn move_down() -> Vec<LumaMessage> {
+    log::trace!("Moving cursor down");
     let mut state = block_on(async { STATE.write().await });
 
     let max_len = block_on(async { LUMA.read().await })
@@ -138,19 +128,19 @@ fn move_down() -> Option<LumaMessage> {
         state.selected_index += 1;
     }
 
-    LumaMessage::Redraw.into()
+    vec![LumaMessage::Redraw]
 }
 
-fn move_up() -> Option<LumaMessage> {
+fn move_up() -> Vec<LumaMessage> {
     let mut state = block_on(async { STATE.write().await });
 
     if state.selected_index > 0 {
         state.selected_index -= 1;
     }
-    LumaMessage::Redraw.into()
+    vec![LumaMessage::Redraw]
 }
 
-fn select() -> Option<LumaMessage> {
+fn select() -> Vec<LumaMessage> {
     let (tab, index) = block_on(util::get_tab_and_index());
     {
         let luma = block_on(async { LUMA.read().await });
@@ -159,16 +149,16 @@ fn select() -> Option<LumaMessage> {
         log::info!("Opening link: {}", link.link);
         AUDIO_OPENER.open(&link.link);
     }
-    None
+    vec![]
 }
 
-fn go_top() -> Option<LumaMessage> {
+fn go_top() -> Vec<LumaMessage> {
     let mut state = block_on(async { STATE.write().await });
     state.selected_index = 0;
-    LumaMessage::Redraw.into()
+    vec![LumaMessage::Redraw]
 }
 
-fn go_bottom() -> Option<LumaMessage> {
+fn go_bottom() -> Vec<LumaMessage> {
     let mut state = block_on(async { STATE.write().await });
     let max_index = block_on(async { LUMA.read().await })
         .get_index(state.selected_tab)
@@ -176,36 +166,40 @@ fn go_bottom() -> Option<LumaMessage> {
         .1
         .len();
     state.selected_index = max_index - 1;
-    LumaMessage::Redraw.into()
+    vec![LumaMessage::Redraw]
 }
 
-// const HELP_TEXT: &str = "\
-// j k     -       Move Up/Down\n\
-// g G     -       Go Top/Bottom\n\
-// Enter   -       Open Link in Browser\n\
-// c-j c-k -       Move Link Up/Down\n\
-// i       -       Add Link\n\
-// D       -       Delete entry\n\
-// q       -       Exit\
-// ";
+const HELP_TEXT: &str = "\
+j k     -       Move Up/Down\n\
+g G     -       Go Top/Bottom\n\
+Enter   -       Open Link in Browser\n\
+c-j c-k -       Move Link Up/Down\n\
+i       -       Add Link\n\
+D       -       Delete entry\n\
+q       -       Exit\
+";
 
-// fn show_help() -> Option<LumaMessage> {
-//     let h = tokio::spawn(async move {
-//         let (tx, rx) = oneshot::channel();
-//
-//         // *MODE.write().unwrap() = Mode::Prompt(crate::mode::PromptData {
-//         //     prompt: HELP_TEXT.to_string().into_boxed_str(),
-//         //     resp: Some(tx),
-//         // });
-//         _ = rx.await;
-//         // *MODE.write().unwrap() = Mode::Normal;
-//     });
-// }
+fn show_help() -> Vec<LumaMessage> {
+    let (tx, rx) = oneshot::channel();
+
+    let h = tokio::spawn(async move {
+        rx.await.unwrap();
+        vec![LumaMessage::Redraw]
+    });
+
+    vec![
+        LumaMessage::SetMode(Mode::Prompt(crate::mode::PromptData {
+            prompt: HELP_TEXT.to_string().into_boxed_str(),
+            resp: Some(tx),
+        })),
+        LumaMessage::AddHandle(h),
+    ]
+}
 
 /// This currently works but is a bit hacky
 /// There might be some consideration to using a tokio::sync::RwLock so the write
 /// can be held over the await to garentee that no one changes it in the down time
-fn delete() -> Option<LumaMessage> {
+fn delete() -> Vec<LumaMessage> {
     let (tab, index) = block_on(util::get_tab_and_index());
 
     let name = block_on(async { LUMA.read().await })
@@ -219,21 +213,26 @@ fn delete() -> Option<LumaMessage> {
 
     let (tx, rx) = oneshot::channel();
 
-    let _h = tokio::spawn(async move {
+    let h = tokio::spawn(async move {
         if let Ok(PromptResponse::Yes) = rx.await {
             block_on(async { LUMA.write().await })
                 .get_index_mut(tab)
                 .unwrap()
                 .1
                 .remove(index);
+            vec![LumaMessage::Redraw]
+        } else {
+            vec![]
         }
     });
 
-    LumaMessage::SetMode(Mode::Prompt(crate::mode::PromptData {
-        prompt: format!("Remove audio \"{}\"? (y/N)", name).into_boxed_str(),
-        resp: Some(tx),
-    }))
-    .into()
+    vec![
+        LumaMessage::SetMode(Mode::Prompt(crate::mode::PromptData {
+            prompt: format!("Remove audio \"{}\"? (y/N)", name).into_boxed_str(),
+            resp: Some(tx),
+        })),
+        LumaMessage::AddHandle(h),
+    ]
 }
 
 //         Key::Left | Key::Char('h') => todo!(),
@@ -276,10 +275,6 @@ fn delete() -> Option<LumaMessage> {
 //             LumaMessage::Redraw
 //         }
 //
-//         Key::Char('1') => numeric_key_option!(self, luma, 0),
-//         Key::Char('2') => numeric_key_option!(self, luma, 1),
-//         Key::Char('3') => numeric_key_option!(self, luma, 2),
-//         Key::Char('4') => numeric_key_option!(self, luma, 3),
 //
 //         // Key::Tab => self.screens.next_tab(),
 //         Key::Alt('e') => todo!("enter search"),
@@ -287,3 +282,7 @@ fn delete() -> Option<LumaMessage> {
 //         _ => todo!(),
 //     }
 // }
+fn numeric_key_option<const N: usize>() -> Vec<LumaMessage> {
+    block_on(async { STATE.write().await }).selected_tab = N;
+    vec![LumaMessage::Redraw]
+}
