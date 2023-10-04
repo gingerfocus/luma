@@ -13,9 +13,11 @@ pub enum LumaError {
 
     // #[error("Encoder error: {0}")]
     // Encoder(#[from] vorbis_rs::VorbisError),
-
     #[error("Threads failed to sync: {0}")]
     Sync(#[from] mpsc::error::SendError<ThreadMessage>),
+
+    #[error("Thread paniced: {0}")]
+    Thread(#[from] tokio::task::JoinError),
 
     // #[error("invalid header (expected {expected:?}, found {found:?})")]
     // InvalidHeader {
@@ -25,4 +27,10 @@ pub enum LumaError {
     #[error("Unknown error")]
     Unknown,
     // Mpd,
+}
+
+impl From<String> for LumaError {
+    fn from(value: String) -> Self {
+        LumaError::Generic(value)
+    }
 }

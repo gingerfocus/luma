@@ -2,7 +2,7 @@ pub mod render;
 pub mod screen;
 pub mod traits;
 
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use tokio::task::JoinHandle;
 
@@ -11,6 +11,7 @@ use crate::{prelude::*, util::programs::Programs};
 pub async fn render_screen(
     mut rx: mpsc::Receiver<LumaMessage>,
     event_thread_channel: mpsc::Sender<ThreadMessage>,
+    save_thread_channel: mpsc::Sender<Option<PathBuf>>,
     mode: GlobalMode,
 ) {
     log::info!("render thread created");
@@ -20,11 +21,19 @@ pub async fn render_screen(
     app.init().unwrap();
 
     // --------------------------------------------
-    app.draw(&mode.read().unwrap()).unwrap();
+    app.draw(&mode.read().await as &Mode).unwrap();
 
     while app.run {
         if let Some(msg) = rx.recv().await {
-            handle_msg(msg, &mut app, &mode, &event_thread_channel, &mut handles).await;
+            handle_msg(
+                msg,
+                &mut app,
+                &mode,
+                &event_thread_channel,
+                &save_thread_channel,
+                &mut handles,
+            )
+            .await;
         }
 
         let mut new_handles = vec![];
@@ -37,6 +46,7 @@ pub async fn render_screen(
                             &mut app,
                             &mode,
                             &event_thread_channel,
+                            &save_thread_channel,
                             &mut new_handles,
                         )
                         .await;
@@ -65,19 +75,20 @@ async fn handle_msg(
     app: &mut App,
     mode: &GlobalMode,
     event_tx: &mpsc::Sender<ThreadMessage>,
+    save_tx: &mpsc::Sender<Option<PathBuf>>,
     handles: &mut Vec<JoinHandle<Vec<LumaMessage>>>,
 ) {
     match msg {
         LumaMessage::Redraw => {
-            app.draw(&mode.read().unwrap()).unwrap();
+            app.draw(&mode.read().await as &Mode).unwrap();
         }
         LumaMessage::Exit => {
             app.run = false;
         }
         LumaMessage::SetMode(m) => {
             log::info!("waiting on write for mode.");
-            *mode.write().unwrap() = m;
-            app.draw(&mode.read().unwrap()).unwrap();
+            *mode.write().await = m;
+            app.draw(&mode.read().await as &Mode).unwrap();
         }
         LumaMessage::OpenEditor { text, resp } => {
             log::debug!("Opening editor");
@@ -88,9 +99,10 @@ async fn handle_msg(
 
             resume_event_channel(app, event_tx).await.unwrap();
 
-            app.redraw(&mode.read().unwrap()).unwrap();
+            app.redraw(&mode.read().await as &Mode).unwrap();
         }
         LumaMessage::AddHandle(h) => handles.push(h),
+        LumaMessage::Save(p) => save_tx.send(p).await.unwrap(),
     }
 }
 

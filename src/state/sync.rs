@@ -1,7 +1,10 @@
+use std::path::PathBuf;
+
 use tokio::task::JoinHandle;
 
 use crate::prelude::*;
 
+#[derive(Debug)]
 pub enum LumaMessage {
     Redraw,
     Exit,
@@ -11,6 +14,8 @@ pub enum LumaMessage {
         text: String,
         resp: oneshot::Sender<String>,
     },
+    // An empty path means save to the default path
+    Save(Option<PathBuf>),
 }
 
 #[derive(Debug)]

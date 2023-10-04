@@ -38,7 +38,7 @@ pub async fn read_events(
                         Some(ThreadMessage::Resume) => {
                             paused = false;
                             // HACK: When returning from running an external
-                            // program/there is a phantom event that is read 
+                            // program/there is a phantom event that is read
                             // (immediatly?). This next call to the reader just
                             // discards that message which can often be bad
                             let _ = futures::StreamExt::next(&mut reader).await;

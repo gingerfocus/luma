@@ -1,5 +1,6 @@
 //! A Program to unite the web and filesystem
 
+#![feature(let_chains)]
 // #![allow(unused)]
 #![warn(unused_crate_dependencies)]
 // #![warn(missing_docs)]
@@ -15,7 +16,7 @@ pub mod ui;
 #[macro_use]
 pub mod util;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::prelude::*;
 use clap::Parser;
@@ -28,6 +29,9 @@ async fn main() -> Result<()> {
         init_logger(args.log_file).await?;
     }
 
+    let file_str = args.file.to_str().unwrap().to_string();
+
+    // TODO: use json::from_reader
     *LUMA.write().await = json::from_str(&fs::read_to_string(&args.file)?)?;
     let mode: GlobalMode = Default::default();
 
@@ -35,8 +39,10 @@ async fn main() -> Result<()> {
     // (or .1) is the receiving half
     let terminal_event_channel = mpsc::channel(16);
     let request_channel = mpsc::channel(32);
+    let save_channel = mpsc::channel(2);
 
     let event_hangup_request_channel = mpsc::channel(2);
+    let save_hangup_request_channel = mpsc::channel(2);
 
     let input_task = tokio::spawn(event::read_events(
         terminal_event_channel.0,
@@ -50,14 +56,36 @@ async fn main() -> Result<()> {
     let render_task = tokio::spawn(ui::render_screen(
         request_channel.1,
         event_hangup_request_channel.0,
+        save_channel.0,
         mode,
     ));
 
-    render_task.await.unwrap();
-    input_task.await.unwrap();
-    request_task.await.unwrap();
+    let save_thread = tokio::spawn(process_saves(
+        save_channel.1,
+        save_hangup_request_channel.1,
+        args.file,
+    ));
 
-    save_luma(args.file).await;
+    render_task.await?;
+    input_task.await?;
+    request_task.await?;
+
+    save_hangup_request_channel
+        .0
+        .send(ThreadMessage::Close)
+        .await
+        .unwrap();
+    save_thread.await?;
+
+    if STATE.read().await.unsaved_changes {
+        let q = requestty::Question::confirm("Save")
+            .message("Save?")
+            .default(true)
+            .build();
+        if let Ok(requestty::Answer::Bool(b)) = requestty::prompt_one(q) && b {
+            save_luma(file_str).await?;
+        }
+    }
 
     Ok(())
 }
@@ -82,17 +110,32 @@ async fn init_logger(file: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-async fn save_luma(file: PathBuf) {
-    let file = requestty::Question::input("file")
-        .message("Save as")
-        .default(file.to_str().unwrap())
-        .build();
-    let path = match requestty::prompt_one(file) {
-        Ok(requestty::Answer::String(s)) => s,
-        _ => unreachable!(),
-    };
-
-    if let Ok(f) = fs::File::create(path) {
-        json::to_writer_pretty::<_, Luma>(f, &LUMA.read().await as &Luma).unwrap();
+async fn process_saves(
+    mut p_rx: mpsc::Receiver<Option<PathBuf>>,
+    mut msgs: mpsc::Receiver<ThreadMessage>,
+    default: PathBuf,
+) {
+    loop {
+        tokio::select! {
+            p = p_rx.recv() => {
+                if let Some(Some(path)) = p {
+                    save_luma(path).await.unwrap();
+                } else {
+                    save_luma(&default).await.unwrap();
+                }
+                STATE.write().await.unsaved_changes = false;
+            },
+            m = msgs.recv() => {
+                if let Some(ThreadMessage::Close) = m {
+                    break;
+                }
+            }
+        }
     }
+}
+
+async fn save_luma(path: impl AsRef<Path>) -> Result<()> {
+    let f = fs::File::create(path)?;
+    json::to_writer_pretty::<_, Luma>(f, &LUMA.read().await as &Luma)?;
+    Ok(())
 }

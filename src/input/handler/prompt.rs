@@ -1,6 +1,6 @@
 use crate::event::key::Key;
-use crate::state::mode::{PromptData, PromptResponse};
 use crate::prelude::*;
+use crate::state::mode::{PromptData, PromptResponse};
 
 use super::Handler;
 

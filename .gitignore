@@ -1,6 +1,3 @@
 /target/
 /refs/
-
-@INDEX.json
-luma.log
-in.ogg
+/data/

@@ -49,8 +49,8 @@ impl Handler {
         }
     }
 
-    pub fn handle(&mut self, key: Key, mode: &GlobalMode) -> Vec<LumaMessage> {
-        match &mut mode.write().unwrap() as &mut Mode {
+    pub async fn handle(&mut self, key: Key, mode: &GlobalMode) -> Vec<LumaMessage> {
+        match &mut mode.write().await as &mut Mode {
             Mode::Normal => match self.normal_keys.get(&key) {
                 Some(f) => f(),
                 None => vec![],

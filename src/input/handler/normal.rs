@@ -1,7 +1,7 @@
 use crate::event::key::Key;
-use crate::state::mode::{PromptResponse, PromptData};
 use crate::prelude::*;
-use crate::state::Link;
+use crate::state::link::Link;
+use crate::state::mode::{PromptData, PromptResponse};
 
 use super::Handler;
 
@@ -22,6 +22,8 @@ pub fn add_all(h: &mut Handler) {
     h.add_normal_handlers([Key::Char('D'), Key::Backspace], delete);
 
     h.add_normal_handler(Key::Char('?'), show_help);
+
+    h.add_normal_handler(Key::Char('s'), save);
 
     h.add_normal_handler(Key::Char('1'), numeric_key_option::<0>);
     h.add_normal_handler(Key::Char('2'), numeric_key_option::<1>);
@@ -59,6 +61,7 @@ fn go_edit() -> Vec<LumaMessage> {
                 *l = link;
             }
         }
+        block_on(async { STATE.write().await }).unsaved_changes = false;
         vec![LumaMessage::Redraw]
     });
 
@@ -95,6 +98,7 @@ fn go_insert() -> Vec<LumaMessage> {
                     .insert(index, link);
             }
         }
+        block_on(async { STATE.write().await }).unsaved_changes = false;
         vec![LumaMessage::Redraw]
     });
 
@@ -152,6 +156,10 @@ fn move_up() -> Vec<LumaMessage> {
     vec![LumaMessage::Redraw]
 }
 
+fn save() -> Vec<LumaMessage> {
+    vec![LumaMessage::Save(None)]
+}
+
 fn select() -> Vec<LumaMessage> {
     let (tab, index) = block_on(util::get_tab_and_index());
     {
@@ -159,7 +167,7 @@ fn select() -> Vec<LumaMessage> {
         let set = luma.get_index(tab).unwrap();
         let link = set.1.get(index).unwrap();
         log::info!("Opening link: {}", link.link);
-        AUDIO_OPENER.open(&link.link);
+        AUDIO_OPENER.open(link).unwrap();
     }
     vec![]
 }

@@ -9,28 +9,27 @@ pub use crate::{
     ui::screen::Screen,
     util,
 };
+pub use futures::executor::block_on;
 pub use std::{env, fs, io};
 pub use tokio::sync::{mpsc, oneshot};
-pub use futures::executor::block_on;
 
 pub type Result<T> = core::result::Result<T, LumaError>;
-
-type GlobalState = Arc<RwLock<State>>;
-type GlobalLuma = Arc<RwLock<Luma>>;
-pub type GlobalMode = std::sync::Arc<std::sync::RwLock<Mode>>;
 
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+type GlobalState = Arc<RwLock<State>>;
+type GlobalLuma = Arc<RwLock<Luma>>;
+pub type GlobalMode = Arc<RwLock<Mode>>;
+
 lazy_static::lazy_static! {
     pub static ref STATE: GlobalState = Default::default();
     pub static ref LUMA: GlobalLuma = Default::default();
-
-    pub static ref AUDIO_OPENER: crate::state::OpenCommand = crate::state::OpenCommand {
-        cmd: "firefox",
-        args: ["--private-window"].into(),
-    };
 }
+
+use crate::state::link::OpenCommand;
+
+pub const AUDIO_OPENER: OpenCommand<1> = OpenCommand::new("firefox", ["--private-window"]);
 
 // const LINK_OPENER: LazyCell<luma::OpenCommand> = LazyCell::new(|| luma::OpenCommand {
 //     cmd: "firefox",

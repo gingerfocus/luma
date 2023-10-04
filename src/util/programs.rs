@@ -2,11 +2,13 @@ use std::{io::Write, path::PathBuf};
 
 use crate::prelude::*;
 
+#[derive(Debug)]
 pub enum Programs {
     Editor(EditorData),
     Tagger { editor: EditorData },
 }
 
+#[derive(Debug)]
 pub struct EditorData {
     text: String,
     resp: oneshot::Sender<String>,
@@ -39,18 +41,19 @@ impl Programs {
                 if let Ok(s) = String::from_utf8(res) {
                     data.resp.send(s).unwrap();
                 }
+                Ok(())
             }
-            Self::Tagger { editor } => todo!(),
+            Self::Tagger { editor } => {
+                Err(format!("Unimplliented handle of tagger: {:?}", editor).into())
+            }
         }
-
-        Ok(())
     }
 
     pub async fn editor(text: String, resp: oneshot::Sender<String>) -> Programs {
         Programs::Editor(EditorData { text, resp })
     }
 
-    pub fn tagger(file: impl AsRef<PathBuf>) -> Programs {
+    pub fn tagger(_file: impl AsRef<PathBuf>) -> Programs {
         todo!()
         // err() { echo "Usage:
         //     tag [OPTIONS] file

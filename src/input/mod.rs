@@ -18,20 +18,18 @@ pub async fn process_request(
     log::info!("request thread created");
     let mut handler = Handler::new();
 
-    'read: loop {
+    loop {
         let timeout = tokio::time::sleep(Duration::from_secs(2));
 
         tokio::select! {
-            _ = tx.closed() => break 'read,
+            _ = tx.closed() => break,
             _ = timeout => continue,
             e = rx.recv() => {
                 if let Some(event) = e {
                     log::trace!("got key event: {:?}", event);
 
                     for req in handle(event, &mut handler, &mode).await {
-                        if tx.send(req).await.is_err() {
-                            break;
-                        }
+                        if tx.send(req).await.is_err() { break; }
                     }
                 }
             }
@@ -43,7 +41,7 @@ pub async fn process_request(
 pub async fn handle(event: Event, handler: &mut Handler, mode: &GlobalMode) -> Vec<LumaMessage> {
     match event {
         Event::GainedFocus(_did) => vec![],
-        Event::Input(key) => handler.handle(key, mode),
+        Event::Input(key) => handler.handle(key, mode).await,
         Event::Click(click) => handle_click(click).await,
         Event::Resize(_x, _y) => vec![LumaMessage::Redraw],
         Event::Tick => vec![],
