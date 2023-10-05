@@ -22,21 +22,17 @@ type GlobalState = Arc<RwLock<State>>;
 type GlobalLuma = Arc<RwLock<Luma>>;
 pub type GlobalMode = Arc<RwLock<Mode>>;
 
+use crate::state::link::OpenCommand;
+
 lazy_static::lazy_static! {
     pub static ref STATE: GlobalState = Default::default();
     pub static ref LUMA: GlobalLuma = Default::default();
 }
 
-use crate::state::link::OpenCommand;
+pub const LINK_OPENER: OpenCommand<1> = OpenCommand::new("firefox", ["--private-window"]);
+pub const FILE_OPENER: OpenCommand<0> = OpenCommand::new("mpv", []);
+pub const DOWNLOAD_DIR: &str = concat!(env!("HOME"), "/dl");
 
-pub const AUDIO_OPENER: OpenCommand<1> = OpenCommand::new("firefox", ["--private-window"]);
-
-// const LINK_OPENER: LazyCell<luma::OpenCommand> = LazyCell::new(|| luma::OpenCommand {
-//     cmd: "firefox",
-//     args: ["--private-window"].into(),
-// });
-// const TEXT_OPENER: LazyCell<luma::OpenCommand> = LazyCell::new(|| luma::OpenCommand {
-//     cmd: "firefox",
-//     args: ["--private-window"].into(),
-// });
-// const DOWNLOAD_DIR: &'static str = "~/dl";
+pub fn default<T: Default>() -> T {
+    T::default()
+}

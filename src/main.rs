@@ -1,7 +1,5 @@
 //! A Program to unite the web and filesystem
 
-#![feature(let_chains)]
-// #![allow(unused)]
 #![warn(unused_crate_dependencies)]
 // #![warn(missing_docs)]
 
@@ -28,6 +26,7 @@ async fn main() -> Result<()> {
     if args.log {
         init_logger(args.log_file).await?;
     }
+    log::error!("Download dir: {}", DOWNLOAD_DIR);
 
     let file_str = args.file.to_str().unwrap().to_string();
 
@@ -53,20 +52,20 @@ async fn main() -> Result<()> {
         terminal_event_channel.1,
         mode.clone(),
     ));
-    let render_task = tokio::spawn(ui::render_screen(
-        request_channel.1,
-        event_hangup_request_channel.0,
-        save_channel.0,
-        mode,
-    ));
-
     let save_thread = tokio::spawn(process_saves(
         save_channel.1,
         save_hangup_request_channel.1,
         args.file,
     ));
 
-    render_task.await?;
+    ui::render_screen(
+        request_channel.1,
+        event_hangup_request_channel.0,
+        save_channel.0,
+        mode,
+    )
+    .await;
+
     input_task.await?;
     request_task.await?;
 
@@ -82,8 +81,12 @@ async fn main() -> Result<()> {
             .message("Save?")
             .default(true)
             .build();
-        if let Ok(requestty::Answer::Bool(b)) = requestty::prompt_one(q) && b {
-            save_luma(file_str).await?;
+
+        let Ok(requestty::Answer::Bool(save)) = requestty::prompt_one(q) else {
+            return Err(LumaError::Generic("Question ask failed".into()));
+        };
+        if save {
+            save_luma(file_str).await?
         }
     }
 

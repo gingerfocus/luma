@@ -1,6 +1,7 @@
 use crate::prelude::*;
 
 use serde::{Deserialize, Serialize};
+use tokio::task::JoinHandle;
 use tui::style::Color;
 
 use std::process::Command;
@@ -44,19 +45,26 @@ impl<const N: usize> OpenCommand<N> {
         Self { name, args }
     }
 
-    pub fn open(&self, link: &Link) -> Result<()> {
+    pub fn open(&self, name: &str) -> Result<JoinHandle<Vec<LumaMessage>>> {
         // it isn't really out concern right now how the process went
-        let mut child = Command::new(self.name)
+
+        let mut child = Command::new(self.name);
+        child
             .args(self.args.iter())
-            .arg(&link.link)
+            .arg(name)
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()?;
+            .stderr(Stdio::null());
 
-        let _id = child.id();
+        let h = tokio::spawn(async move {
+            let mut child = child.spawn().unwrap();
 
-        child.wait().unwrap();
+            let _id = child.id();
 
-        Ok(())
+            child.wait().unwrap();
+
+            vec![]
+        });
+
+        Ok(h)
     }
 }

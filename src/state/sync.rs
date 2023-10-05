@@ -9,7 +9,7 @@ pub enum LumaMessage {
     Redraw,
     Exit,
     SetMode(Mode),
-    AddHandle(JoinHandle<Vec<LumaMessage>>),
+    AddHandle(LumaTask),
     OpenEditor {
         text: String,
         resp: oneshot::Sender<String>,
@@ -17,6 +17,8 @@ pub enum LumaMessage {
     // An empty path means save to the default path
     Save(Option<PathBuf>),
 }
+
+pub type LumaTask = (String, JoinHandle<Vec<LumaMessage>>);
 
 #[derive(Debug)]
 pub enum ThreadMessage {

@@ -4,8 +4,6 @@ pub mod traits;
 
 use std::{path::PathBuf, time::Duration};
 
-use tokio::task::JoinHandle;
-
 use crate::{prelude::*, util::programs::Programs};
 
 pub async fn render_screen(
@@ -16,7 +14,7 @@ pub async fn render_screen(
 ) {
     log::info!("render thread created");
 
-    let mut handles: Vec<JoinHandle<Vec<LumaMessage>>> = vec![];
+    let mut handles: Vec<LumaTask> = vec![];
     let mut app = App::new().unwrap();
     app.init().unwrap();
 
@@ -38,8 +36,8 @@ pub async fn render_screen(
 
         let mut new_handles = vec![];
         for h in handles {
-            if h.is_finished() {
-                if let Ok(msgs) = h.await {
+            if h.1.is_finished() {
+                if let Ok(msgs) = h.1.await {
                     for msg in msgs {
                         handle_msg(
                             msg,
@@ -76,7 +74,7 @@ async fn handle_msg(
     mode: &GlobalMode,
     event_tx: &mpsc::Sender<ThreadMessage>,
     save_tx: &mpsc::Sender<Option<PathBuf>>,
-    handles: &mut Vec<JoinHandle<Vec<LumaMessage>>>,
+    handles: &mut Vec<LumaTask>,
 ) {
     match msg {
         LumaMessage::Redraw => {

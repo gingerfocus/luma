@@ -61,7 +61,7 @@ fn go_edit() -> Vec<LumaMessage> {
                 *l = link;
             }
         }
-        block_on(async { STATE.write().await }).unsaved_changes = false;
+        block_on(async { STATE.write().await }).unsaved_changes = true;
         vec![LumaMessage::Redraw]
     });
 
@@ -69,7 +69,7 @@ fn go_edit() -> Vec<LumaMessage> {
 
     vec![
         LumaMessage::OpenEditor { text, resp: tx },
-        LumaMessage::AddHandle(h),
+        LumaMessage::AddHandle(("Finish Edit".into(), h)),
     ]
 }
 
@@ -98,7 +98,7 @@ fn go_insert() -> Vec<LumaMessage> {
                     .insert(index, link);
             }
         }
-        block_on(async { STATE.write().await }).unsaved_changes = false;
+        block_on(async { STATE.write().await }).unsaved_changes = true;
         vec![LumaMessage::Redraw]
     });
 
@@ -106,7 +106,7 @@ fn go_insert() -> Vec<LumaMessage> {
 
     vec![
         LumaMessage::OpenEditor { text, resp: tx },
-        LumaMessage::AddHandle(h),
+        LumaMessage::AddHandle(("Finish Insert".into(), h)),
     ]
     // let (tab, index) = block_on(util::get_tab_and_index());
     //
@@ -162,14 +162,18 @@ fn save() -> Vec<LumaMessage> {
 
 fn select() -> Vec<LumaMessage> {
     let (tab, index) = block_on(util::get_tab_and_index());
-    {
+    let h = {
         let luma = block_on(async { LUMA.read().await });
         let set = luma.get_index(tab).unwrap();
         let link = set.1.get(index).unwrap();
         log::info!("Opening link: {}", link.link);
-        AUDIO_OPENER.open(link).unwrap();
-    }
-    vec![]
+        // if let Some(path) = &link.file {
+        //     FILE_OPENER.open(path.as_str()).unwrap()
+        // } else {
+        LINK_OPENER.open(&link.link).unwrap()
+        // }
+    };
+    vec![LumaMessage::AddHandle(("Open Command".into(), h))]
 }
 
 fn go_top() -> Vec<LumaMessage> {
@@ -212,7 +216,7 @@ fn show_help() -> Vec<LumaMessage> {
             prompt: HELP_TEXT.to_string().into_boxed_str(),
             resp: Some(tx),
         })),
-        LumaMessage::AddHandle(h),
+        LumaMessage::AddHandle(("Close Help".into(), h)),
     ]
 }
 
@@ -251,7 +255,7 @@ fn delete() -> Vec<LumaMessage> {
             prompt: format!("Remove audio \"{}\"? (y/N)", name).into_boxed_str(),
             resp: Some(tx),
         })),
-        LumaMessage::AddHandle(h),
+        LumaMessage::AddHandle(("Delete Link".into(), h)),
     ]
 }
 
