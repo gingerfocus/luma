@@ -5,6 +5,9 @@ pub enum LumaError {
     #[error("File io failure")]
     Io(#[from] io::Error),
 
+    #[error("Terminal failure")]
+    Terminal(#[from] tuirealm::terminal::TerminalError),
+
     #[error("Generic error: `{0}`")]
     Generic(String),
 
@@ -19,6 +22,9 @@ pub enum LumaError {
     #[error("Thread paniced: {0}")]
     Thread(#[from] tokio::task::JoinError),
 
+    #[error("Render failed: {0}")]
+    Render(#[from] tuirealm::ApplicationError),
+
     // #[error("invalid header (expected {expected:?}, found {found:?})")]
     // InvalidHeader {
     //     expected: String,
@@ -32,5 +38,11 @@ pub enum LumaError {
 impl From<String> for LumaError {
     fn from(value: String) -> Self {
         LumaError::Generic(value)
+    }
+}
+
+impl From<&str> for LumaError {
+    fn from(value: &str) -> Self {
+        value.to_owned().into()
     }
 }

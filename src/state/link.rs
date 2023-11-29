@@ -1,20 +1,36 @@
-use crate::prelude::*;
+use std::sync::{Arc, RwLock};
 
 use serde::{Deserialize, Serialize};
-use tokio::task::JoinHandle;
-use tui::style::Color;
 
-use std::process::Command;
-use std::process::Stdio;
+#[derive(Debug, Clone)]
+pub struct GlobalLink(Arc<RwLock<Link>>);
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+impl PartialEq for GlobalLink {
+    fn eq(&self, other: &Self) -> bool {
+        &self.0.read().unwrap() as &Link == &other.0.read().unwrap() as &Link
+    }
+}
+impl Eq for GlobalLink {}
+impl PartialOrd for GlobalLink {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        todo!()
+    }
+}
+
+impl Ord for GlobalLink {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        todo!()
+    }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Link {
     pub name: String,
     pub link: String,
     pub file: Option<String>,
     pub desc: Option<String>,
     pub artist: Option<String>,
-    pub color: Option<Color>,
+    pub color: Option<String>,
 }
 
 impl Link {
@@ -29,42 +45,11 @@ impl Link {
         }
     }
 
+    pub fn as_global(self) -> GlobalLink {
+        GlobalLink(Arc::new(RwLock::new(self)))
+    }
+
     pub fn stub() -> Link {
         Default::default()
-    }
-}
-
-#[derive(Debug)]
-pub struct OpenCommand<const N: usize> {
-    pub name: &'static str,
-    pub args: [&'static str; N],
-}
-
-impl<const N: usize> OpenCommand<N> {
-    pub const fn new(name: &'static str, args: [&'static str; N]) -> Self {
-        Self { name, args }
-    }
-
-    pub fn open(&self, name: &str) -> Result<JoinHandle<Vec<LumaMessage>>> {
-        // it isn't really out concern right now how the process went
-
-        let mut child = Command::new(self.name);
-        child
-            .args(self.args.iter())
-            .arg(name)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
-
-        let h = tokio::spawn(async move {
-            let mut child = child.spawn().unwrap();
-
-            let _id = child.id();
-
-            child.wait().unwrap();
-
-            vec![]
-        });
-
-        Ok(h)
     }
 }

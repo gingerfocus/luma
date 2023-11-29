@@ -23,7 +23,7 @@ debug: && log
 
 # Runs the code with example data
 run:
-    cargo run -- ~/dox/luma.json
+    cargo run -- ./luma.json
 
 # Installs into $HOME/.local/bin
 install: build

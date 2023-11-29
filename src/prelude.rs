@@ -1,12 +1,11 @@
 //! A Collection of re-exports to make programing easier
 
 pub use crate::{
-    app::App,
+    app::model::Model,
     error::LumaError,
     event::Event,
-    input::Handler,
-    state::{mode::Mode, sync::*, Luma, State},
-    ui::screen::Screen,
+    // input::Handler,
+    state::{sync::*, Luma, Mode, State},
     util,
 };
 pub use futures::executor::block_on;
@@ -17,18 +16,12 @@ pub type Result<T> = core::result::Result<T, LumaError>;
 
 use std::sync::Arc;
 use tokio::sync::RwLock;
-
-type GlobalState = Arc<RwLock<State>>;
-type GlobalLuma = Arc<RwLock<Luma>>;
-pub type GlobalMode = Arc<RwLock<Mode>>;
-
-use crate::state::link::OpenCommand;
-
 lazy_static::lazy_static! {
-    pub static ref STATE: GlobalState = Default::default();
-    pub static ref LUMA: GlobalLuma = Default::default();
+    pub static ref STATE: Arc<RwLock<State>> = Default::default();
+    pub static ref LUMA: Arc<RwLock<Luma>>= Default::default();
 }
 
+use crate::state::OpenCommand;
 pub const LINK_OPENER: OpenCommand<1> = OpenCommand::new("firefox", ["--private-window"]);
 pub const FILE_OPENER: OpenCommand<0> = OpenCommand::new("mpv", []);
 pub const DOWNLOAD_DIR: &str = concat!(env!("HOME"), "/dl");

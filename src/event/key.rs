@@ -1,6 +1,8 @@
 use std::fmt;
 
 use crossterm::event;
+use tuirealm::event::KeyEvent;
+use tuirealm::event::KeyModifiers;
 
 /// Represents an key.
 #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
@@ -149,6 +151,49 @@ impl From<event::KeyEvent> for Key {
                 ..
             } => Key::Char(c),
             _ => Key::Unknown,
+        }
+    }
+}
+
+impl From<tuirealm::event::KeyEvent> for Key {
+    fn from(key_event: tuirealm::event::KeyEvent) -> Self {
+        let KeyEvent { code, modifiers } = key_event;
+        use tuirealm::event::Key as RKey;
+        match (code, modifiers) {
+            (RKey::Esc, _) => Key::Esc,
+            (RKey::Backspace, _) => Key::Backspace,
+            (RKey::Left, _) => Key::Left,
+            (RKey::Right, _) => Key::Right,
+            (RKey::Up, _) => Key::Up,
+            (RKey::Down, _) => Key::Down,
+            (RKey::Home, _) => Key::Home,
+            (RKey::End, _) => Key::End,
+            // KeyEvent {
+            //     code: event::KeyCode::Delete,
+            //     ..
+            // } => Key::Delete,
+            // KeyEvent {
+            //     code: event::KeyCode::Insert,
+            //     ..
+            // } => Key::Ins,
+            // KeyEvent {
+            //     code: event::KeyCode::F(n),
+            //     ..
+            // } => Key::F(n),
+            // KeyEvent {
+            //     code: event::KeyCode::Enter,
+            //     ..
+            // } => Key::Enter,
+            // KeyEvent {
+            //     code: tuirealm::event::Key::Tab,
+            //     ..
+            // } => Key::Tab,
+
+            // First check for char + modifier
+            (RKey::Char(c), KeyModifiers::ALT) => Key::Alt(c),
+            (RKey::Char(c), KeyModifiers::CONTROL) => Key::Ctrl(c),
+            (RKey::Char(c), KeyModifiers::NONE) => Key::Char(c),
+            (_, _) => Key::Unknown,
         }
     }
 }

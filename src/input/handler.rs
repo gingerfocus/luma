@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use tokio::time::Instant;
-
-use crate::{event::key::Key, prelude::*, state::mode::PromptData};
+use crate::{event::Key, prelude::*, state::data::PromptData};
 
 mod normal;
 mod prompt;
@@ -18,17 +16,7 @@ pub struct Handler {
 
 impl Handler {
     pub fn new() -> Handler {
-        let mut s = Self::default();
-
-        let time_i = Instant::now();
-        s.add_default_binds();
-        log::info!("Adding key binds took {:?}", time_i.elapsed());
-        s
-    }
-
-    pub fn add_default_binds(&mut self) {
-        normal::add_all(self);
-        prompt::add_all(self);
+        Self::default()
     }
 
     pub fn add_normal_handler(&mut self, key: Key, f: NormalFunction) {
@@ -49,8 +37,8 @@ impl Handler {
         }
     }
 
-    pub async fn handle(&mut self, key: Key, mode: &GlobalMode) -> Vec<LumaMessage> {
-        match &mut mode.write().await as &mut Mode {
+    pub async fn handle(&mut self, key: Key, mode: &mut Mode) -> Vec<LumaMessage> {
+        match mode {
             Mode::Normal => match self.normal_keys.get(&key) {
                 Some(f) => f(),
                 None => vec![],

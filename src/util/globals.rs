@@ -12,3 +12,10 @@ pub(crate) use get_luma;
 // }
 //
 // pub(crate) use get_mut_luma;
+
+macro_rules! get_state_mut {
+    () => {
+        futures::executor::block_on(async { $crate::prelude::STATE.write().await })
+    };
+}
+pub(crate) use get_state_mut;
