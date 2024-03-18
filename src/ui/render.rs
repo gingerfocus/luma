@@ -33,7 +33,6 @@ impl Link {
 impl Render<ListItem<'static>> for Link {
     // pub fn list(set: &[Link]) -> List<'_>
     fn render(&self) -> ListItem<'static> {
-
         // as list item
         let t = Text::raw(self.name.clone());
         ListItem::new(t)

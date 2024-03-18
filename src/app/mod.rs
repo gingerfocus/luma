@@ -1,52 +1,109 @@
-use crate::state::{GlobalSet, GlobalLink};
+mod normal;
 
-mod components;
-mod screen;
-pub mod model;
+use crate::prelude::*;
 
-#[derive(Debug, Eq, PartialEq, Clone, Hash)]
-pub enum Msg {
-    AppClose,
-    TabChanged(GlobalSet),
-    LinkChanged(GlobalLink),
+#[derive(Debug)]
+pub struct App {
+    /// If the app should exit.
+    pub quit: bool,
+    /// If the app should draw.
+    pub draw: bool,
+    /// Handle to the terminal
+    term: Terminal,
+    /// The main state of the app.
+    luma: Luma,
+    /// Mode of display that the terminal is in
+    mode: Mode,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Hash)]
-pub enum Id {
-    List,
-    Preveiw,
-    Tabs,
-    GlobalListener,
+#[derive(Default, Debug)]
+pub enum Mode {
+    #[default]
+    Normal,
+    // Prompt(PromptData),
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Hash, PartialOrd)]
-pub enum UserEvent {
-    LinkChanged(GlobalLink),
+#[derive(Debug)]
+pub enum AppError {
+    Draw,
+}
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AppError::Draw => f.write_str("failed to draw the screen"),
+        }
+    }
+}
+impl Context for AppError {}
+
+impl App {
+    pub fn new(luma: Luma) -> Self {
+        Self {
+            quit: false,
+            draw: true,
+            term: Terminal::new(),
+            mode: Mode::default(),
+            luma,
+        }
+    }
+
+    pub fn redraw(&mut self) -> Result<(), AppError> {
+        log::debug!("thing 2.");
+
+        self.term
+            .backend
+            .draw(|f| match self.mode {
+                Mode::Normal => normal::draw(f, &self.luma),
+            })
+            .change_context(AppError::Draw)?;
+
+        log::debug!("frame finished");
+
+        Ok(())
+    }
+
+    pub fn event(&mut self, event: crossterm::event::Event) {
+        // testing only
+        match event {
+            crossterm::event::Event::Key(_) => self.quit = true,
+            crossterm::event::Event::Paste(_) => {}
+
+            crossterm::event::Event::Resize(_, _) => self.draw = true,
+
+            // I do not care
+            crossterm::event::Event::Mouse(_) => {}
+            crossterm::event::Event::FocusGained => {}
+            crossterm::event::Event::FocusLost => {}
+        }
+    }
 }
 
-// use crate::prelude::*;
+#[derive(Debug)]
+pub struct Terminal {
+    stdout: std::io::Stdout,
+    pub backend: tui::Terminal<tui::backend::CrosstermBackend<io::Stdout>>,
+}
 
-// pub struct App {
-//     pub run: bool,
-//     terminal: Terminal<CrosstermBackend<io::Stdout>>,
-// }
-//
-// impl App {
-//     pub fn new() -> Result<Self> {
-//         let terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
-//
-//         Ok(Self {
-//             run: true,
-//             screen: Default::default(),
-//             terminal,
-//         })
-//     }
-//
-//     pub fn redraw(&mut self, mode: &Mode) -> Result<()> {
-//         self.terminal.draw(|f| f.render_widget(Clear, f.size()))?;
-//         self.draw(mode)
-//     }
-//
+impl Terminal {
+    fn new() -> Self {
+        let backend =
+            tui::Terminal::new(tui::backend::CrosstermBackend::new(std::io::stdout())).unwrap();
+
+        let mut stdout = std::io::stdout();
+        crossterm::terminal::enable_raw_mode().unwrap();
+        crossterm::execute!(stdout, crossterm::terminal::EnterAlternateScreen).unwrap();
+
+        Self { stdout, backend }
+    }
+}
+
+impl Drop for Terminal {
+    fn drop(&mut self) {
+        crossterm::execute!(self.stdout, crossterm::terminal::LeaveAlternateScreen).unwrap();
+        crossterm::terminal::disable_raw_mode().unwrap();
+    }
+}
+
 //     pub fn draw(&mut self, mode: &Mode) -> Result<()> {
 //         log::debug!("redraw started");
 //         self.terminal.draw(|f| {
@@ -93,15 +150,3 @@ pub enum UserEvent {
 //                 }
 //             }
 //         })?;
-//
-//         log::debug!("redraw done");
-//
-//         Ok(())
-//     }
-// }
-//
-// impl Drop for App {
-//     fn drop(&mut self) {
-//         self.deinit().unwrap();
-//     }
-// }

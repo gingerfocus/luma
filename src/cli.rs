@@ -7,15 +7,15 @@ use clap::Parser;
 pub struct Args {
     /// The input file
     #[arg()]
-    pub file: PathBuf,
+    pub input: PathBuf,
 
     /// Enables logging
     #[arg(short, long, default_value_t = false)]
     pub log: bool,
 
     /// Path where log files should be written
-    #[arg(short = 'L', long, value_name = "FILE")]
-    pub log_file: Option<PathBuf>,
+    #[arg(short = 'L', long = "log-file", value_name = "FILE")]
+    pub file: Option<PathBuf>,
 }
 
 // mod thinking {

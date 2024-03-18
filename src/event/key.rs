@@ -1,8 +1,6 @@
 use std::fmt;
 
-use crossterm::event;
-use tuirealm::event::KeyEvent;
-use tuirealm::event::KeyModifiers;
+use crossterm::event::KeyEvent;
 
 /// Represents an key.
 #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
@@ -71,38 +69,45 @@ impl fmt::Display for Key {
     }
 }
 
-impl From<event::KeyEvent> for Key {
-    fn from(key_event: event::KeyEvent) -> Self {
-        match key_event {
-            event::KeyEvent {
+impl From<crossterm::event::KeyEvent> for Key {
+    fn from(event: KeyEvent) -> Self {
+        // let KeyEvent {
+        //     code,
+        //     modifiers,
+        //     kind,
+        //     state,
+        // } = event;
+        use crossterm::event;
+        match event {
+            KeyEvent {
                 code: event::KeyCode::Esc,
                 ..
             } => Key::Esc,
-            event::KeyEvent {
+            KeyEvent {
                 code: event::KeyCode::Backspace,
                 ..
             } => Key::Backspace,
-            event::KeyEvent {
+            KeyEvent {
                 code: event::KeyCode::Left,
                 ..
             } => Key::Left,
-            event::KeyEvent {
+            KeyEvent {
                 code: event::KeyCode::Right,
                 ..
             } => Key::Right,
-            event::KeyEvent {
+            KeyEvent {
                 code: event::KeyCode::Up,
                 ..
             } => Key::Up,
-            event::KeyEvent {
+            KeyEvent {
                 code: event::KeyCode::Down,
                 ..
             } => Key::Down,
-            event::KeyEvent {
+            KeyEvent {
                 code: event::KeyCode::Home,
                 ..
             } => Key::Home,
-            event::KeyEvent {
+            KeyEvent {
                 code: event::KeyCode::End,
                 ..
             } => Key::End,
@@ -155,45 +160,47 @@ impl From<event::KeyEvent> for Key {
     }
 }
 
-impl From<tuirealm::event::KeyEvent> for Key {
-    fn from(key_event: tuirealm::event::KeyEvent) -> Self {
-        let KeyEvent { code, modifiers } = key_event;
-        use tuirealm::event::Key as RKey;
-        match (code, modifiers) {
-            (RKey::Esc, _) => Key::Esc,
-            (RKey::Backspace, _) => Key::Backspace,
-            (RKey::Left, _) => Key::Left,
-            (RKey::Right, _) => Key::Right,
-            (RKey::Up, _) => Key::Up,
-            (RKey::Down, _) => Key::Down,
-            (RKey::Home, _) => Key::Home,
-            (RKey::End, _) => Key::End,
-            // KeyEvent {
-            //     code: event::KeyCode::Delete,
-            //     ..
-            // } => Key::Delete,
-            // KeyEvent {
-            //     code: event::KeyCode::Insert,
-            //     ..
-            // } => Key::Ins,
-            // KeyEvent {
-            //     code: event::KeyCode::F(n),
-            //     ..
-            // } => Key::F(n),
-            // KeyEvent {
-            //     code: event::KeyCode::Enter,
-            //     ..
-            // } => Key::Enter,
-            // KeyEvent {
-            //     code: tuirealm::event::Key::Tab,
-            //     ..
-            // } => Key::Tab,
-
-            // First check for char + modifier
-            (RKey::Char(c), KeyModifiers::ALT) => Key::Alt(c),
-            (RKey::Char(c), KeyModifiers::CONTROL) => Key::Ctrl(c),
-            (RKey::Char(c), KeyModifiers::NONE) => Key::Char(c),
-            (_, _) => Key::Unknown,
-        }
-    }
-}
+// impl From<crossterm::event::KeyEvent> for Key {
+//     fn from(key_event: crossterm::event::KeyEvent) -> Self {
+//         let KeyEvent {
+//             code, modifiers, ..
+//         } = key_event;
+//         use crossterm::event::KeyCode as RKey;
+//         match (code, modifiers) {
+//             (RKey::Esc, _) => Key::Esc,
+//             (RKey::Backspace, _) => Key::Backspace,
+//             (RKey::Left, _) => Key::Left,
+//             (RKey::Right, _) => Key::Right,
+//             (RKey::Up, _) => Key::Up,
+//             (RKey::Down, _) => Key::Down,
+//             (RKey::Home, _) => Key::Home,
+//             (RKey::End, _) => Key::End,
+//             // KeyEvent {
+//             //     code: event::KeyCode::Delete,
+//             //     ..
+//             // } => Key::Delete,
+//             // KeyEvent {
+//             //     code: event::KeyCode::Insert,
+//             //     ..
+//             // } => Key::Ins,
+//             // KeyEvent {
+//             //     code: event::KeyCode::F(n),
+//             //     ..
+//             // } => Key::F(n),
+//             // KeyEvent {
+//             //     code: event::KeyCode::Enter,
+//             //     ..
+//             // } => Key::Enter,
+//             // KeyEvent {
+//             //     code: tuirealm::event::Key::Tab,
+//             //     ..
+//             // } => Key::Tab,
+//
+//             // First check for char + modifier
+//             (RKey::Char(c), KeyModifiers::ALT) => Key::Alt(c),
+//             (RKey::Char(c), KeyModifiers::CONTROL) => Key::Ctrl(c),
+//             (RKey::Char(c), KeyModifiers::NONE) => Key::Char(c),
+//             (_, _) => Key::Unknown,
+//         }
+//     }
+// }
