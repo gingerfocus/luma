@@ -17,9 +17,10 @@ pub use resu::{Context, Report, Result, ResultExt};
 pub use std::sync::mpsc;
 pub use std::{env, fmt, fs, io};
 
-// use crate::state::OpenCommand;
+use crate::state::OpenCommand;
 // pub const LINK_OPENER: OpenCommand = OpenCommand::new("brave", &[]);
 // pub const FILE_OPENER: OpenCommand = OpenCommand::new("mpv", &[]);
+pub const TEXT_OPENER: OpenCommand = OpenCommand::new("nvim", &[]);
 // pub const DOWNLOAD_DIR: &str = concat!(env!("HOME"), "/dln");
 
 #[allow(dead_code)]

@@ -5,16 +5,13 @@
 
 mod app;
 mod cli;
-// pub mod error;
 mod event;
-// pub mod input;
+mod input;
 mod prelude;
 mod state;
 mod ui;
-// pub mod util;
 
 use crate::prelude::*;
-use crate::state::Link;
 
 use std::os::fd::FromRawFd;
 use std::path::PathBuf;
@@ -50,23 +47,23 @@ fn main() -> Result<(), LumaError> {
 
     let f = fs::File::open(&args.input).change_context(LumaError::Input)?;
     let luma: Luma = json::from_reader(f).change_context(LumaError::Parse)?;
-    let luma = Luma {
-        tabs: Vec::from([(
-            String::from("audios"),
-            Vec::from([
-                Link {
-                    name: String::from("example"),
-                    link: String::from("https://example.com"),
-                    ..Default::default()
-                },
-                Link {
-                    name: String::from("anilist"),
-                    link: String::from("https://anilist.co"),
-                    ..Default::default()
-                },
-            ]),
-        )]),
-    };
+    // let luma = Luma {
+    //     tabs: Vec::from([(
+    //         String::from("audios"),
+    //         Vec::from([
+    //             Link {
+    //                 name: String::from("example"),
+    //                 link: String::from("https://example.com"),
+    //                 ..Default::default()
+    //             },
+    //             Link {
+    //                 name: String::from("anilist"),
+    //                 link: String::from("https://anilist.co"),
+    //                 ..Default::default()
+    //             },
+    //         ]),
+    //     )]),
+    // };
 
     // Safety: "I do solumnly swear that this is the only way I will write to
     // stdout and understand that if I choose to do it in any additional way I
@@ -81,14 +78,14 @@ fn main() -> Result<(), LumaError> {
         .attach_printable("Could perform first render. Is your terminal ok?")?;
 
     // --------------------------------------------
-    while !app.quit {
+    while !app.stat.quit {
         log::debug!("starting event loop.");
         if let Some(e) = read_event()? {
             app.event(e);
         }
-        if app.draw {
-            app.redraw().change_context(LumaError::Render)?;
-            app.draw = false;
+        if app.stat.draw {
+            app.draw().change_context(LumaError::Render)?;
+            app.stat.draw = false;
         }
     }
     // -----------------------------------------------

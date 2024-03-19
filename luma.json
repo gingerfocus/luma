@@ -1,1 +1,26 @@
-{"tabs":[["audios",[{"name":"example","link":"https://example.com"},{"name":"anilist","link":"https://anilist.co"}]]]}
+{
+  "tabs": [
+    [
+      "website",
+      [
+        {
+          "name": "example",
+          "link": "https://example.com"
+        },
+        {
+          "name": "anilist",
+          "link": "https://anilist.co"
+        }
+      ]
+    ],
+    [
+      "audios",
+      [
+        {
+          "name": "youtube",
+          "link": "https://youtube.com"
+        }
+      ]
+    ]
+  ]
+}

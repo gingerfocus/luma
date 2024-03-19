@@ -18,19 +18,7 @@ pub struct TabState {
 }
 
 impl TabState {
-    fn make_tabs<'a>(&'a self) -> Tabs<'a> {
-        Tabs::new(
-            self.names
-                .iter()
-                .cloned()
-                .map(Line::from)
-                .collect::<Vec<Line<'_>>>(),
-        )
-        .select(self.selected)
-        .style(Style::default().fg(Color::White))
-        .highlight_style(Style::default().fg(Color::Yellow))
-        .divider(symbols::DOT)
-    }
+    fn make_tabs<'a>(&'a self) -> Tabs<'a> {}
 }
 
 impl Tabbar {

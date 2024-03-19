@@ -1,7 +1,9 @@
-use crate::prelude::*;
-use std::process::Command;
-use std::process::Stdio;
+use std::{
+    ffi::OsStr,
+    process::{Command, Stdio},
+};
 
+use crate::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -10,12 +12,12 @@ pub struct Luma {
     pub tabs: Vec<(String, Vec<Link>)>,
 }
 
-#[derive(Default)]
-pub struct State {
-    pub selected_tab: usize,
-    pub selected_index: usize,
-    pub unsaved_changes: bool,
-}
+// #[derive(Default)]
+// pub struct State {
+//     pub selected_tab: usize,
+//     pub selected_index: usize,
+//     pub unsaved_changes: bool,
+// }
 
 #[derive(Debug, Default, Serialize, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Link {
@@ -48,41 +50,54 @@ pub struct Link {
 //     }
 // }
 
-// #[derive(Debug)]
-// pub struct OpenCommand {
-//     pub name: &'static str,
-//     pub args: &'static [&'static str],
-// }
-//
-// #[derive(Debug)]
-// pub struct OpenCommandError;
-// impl fmt::Display for OpenCommandError {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         f.write_str("failed to spawn command")
-//     }
-// }
-// impl Context for OpenCommandError {}
-//
-// impl OpenCommand {
-//     pub const fn new(name: &'static str, args: &'static [&'static str]) -> Self {
-//         Self { name, args }
-//     }
-//
-//     pub fn open(&self, name: &str) -> Result<std::process::Child, OpenCommandError> {
-//         // it isn't really out concern right now how the process went
-//
-//         let mut child = Command::new(self.name);
-//
-//         child
-//             .args(self.args.iter())
-//             .arg(name)
-//             .stdin(Stdio::null())
-//             .stdout(Stdio::null())
-//             .stderr(Stdio::null());
-//
-//         let mut c = child.spawn().change_context(OpenCommandError)?;
-//         // drop stdin so process doesn't wait for input
-//         let _ = c.stdout.take();
-//         Ok(c)
-//     }
-// }
+#[derive(Debug)]
+pub struct OpenCommand {
+    pub name: &'static str,
+    pub args: &'static [&'static str],
+}
+
+#[derive(Debug)]
+pub struct OpenCommandError;
+impl fmt::Display for OpenCommandError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("failed to spawn command")
+    }
+}
+impl Context for OpenCommandError {}
+
+impl OpenCommand {
+    pub const fn new(name: &'static str, args: &'static [&'static str]) -> Self {
+        Self { name, args }
+    }
+
+    pub fn run(&self, name: &str) -> Result<std::process::Child, OpenCommandError> {
+        // it isn't really out concern right now how the process went
+
+        let mut child = Command::new(self.name);
+
+        child
+            .args(self.args.iter())
+            .arg(name)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+
+        let mut c = child.spawn().change_context(OpenCommandError)?;
+        // drop stdin so process doesn't wait for input
+        let _ = c.stdout.take();
+        Ok(c)
+    }
+
+    pub fn spawn(&self, name: &str) -> Result<std::process::Child, OpenCommandError> {
+        // it isn't really out concern right now how the process went
+
+        let mut child = Command::new(self.name);
+
+        child.args(self.args.iter()).arg(name);
+
+        let mut c = child.spawn().change_context(OpenCommandError)?;
+        // drop stdin so process doesn't wait for input
+        let _ = c.stdout.take();
+        Ok(c)
+    }
+}
