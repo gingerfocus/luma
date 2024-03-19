@@ -10,11 +10,13 @@ mod event;
 // pub mod input;
 mod prelude;
 mod state;
-// pub mod ui;
+mod ui;
 // pub mod util;
 
 use crate::prelude::*;
+use crate::state::Link;
 
+use std::os::fd::FromRawFd;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -48,8 +50,31 @@ fn main() -> Result<(), LumaError> {
 
     let f = fs::File::open(&args.input).change_context(LumaError::Input)?;
     let luma: Luma = json::from_reader(f).change_context(LumaError::Parse)?;
+    let luma = Luma {
+        tabs: Vec::from([(
+            String::from("audios"),
+            Vec::from([
+                Link {
+                    name: String::from("example"),
+                    link: String::from("https://example.com"),
+                    ..Default::default()
+                },
+                Link {
+                    name: String::from("anilist"),
+                    link: String::from("https://anilist.co"),
+                    ..Default::default()
+                },
+            ]),
+        )]),
+    };
 
-    let mut app = App::new(luma);
+    // Safety: "I do solumnly swear that this is the only way I will write to
+    // stdout and understand that if I choose to do it in any additional way I
+    // will be remain content with my program exploding."
+    //      - Evan Stokdyk, 3/18/2024
+    let stdout = unsafe { fs::File::from_raw_fd(1) };
+
+    let mut app = App::new(luma, stdout);
 
     app.redraw()
         .change_context(LumaError::Render)
@@ -68,15 +93,24 @@ fn main() -> Result<(), LumaError> {
     }
     // -----------------------------------------------
 
-    // let f = fs::File::create(path)?;
-    // json::to_writer_pretty::<_, Luma>(f, &luma)?;
+    let (luma, _term) = app.finish();
+
+    let f = fs::File::create("out.json").unwrap();
+    json::to_writer_pretty::<_, Luma>(f, &luma).unwrap();
+    // json::to_writer::<_, Luma>(f, &luma).unwrap();
 
     log::trace!("exit.");
+
     Ok(())
+
+    // HACK: at the end of the block the [`App`] is dropped. It contains a owned
+    // handle to stdout and so will close it. Returning a result from this
+    // function causes it to _print to stderr which is still open at that point
+    // an so the error displays correctly.
 }
 
 fn read_event() -> Result<Option<crossterm::event::Event>, LumaError> {
-    if crossterm::event::poll(Duration::from_secs(0)).change_context(LumaError::Event)? {
+    if crossterm::event::poll(Duration::from_millis(200)).change_context(LumaError::Event)? {
         let e = crossterm::event::read().change_context(LumaError::Event)?;
         Ok(Some(e))
     } else {

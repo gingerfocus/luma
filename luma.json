@@ -1,8 +1,1 @@
-{
-    "audios": [
-        {
-            "name": "test",
-            "link": "example.com"
-        }
-    ]
-}
+{"tabs":[["audios",[{"name":"example","link":"https://example.com"},{"name":"anilist","link":"https://anilist.co"}]]]}

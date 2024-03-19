@@ -2,6 +2,8 @@ mod normal;
 
 use crate::prelude::*;
 
+use crate::ui::Terminal;
+
 #[derive(Debug)]
 pub struct App {
     /// If the app should exit.
@@ -37,11 +39,11 @@ impl fmt::Display for AppError {
 impl Context for AppError {}
 
 impl App {
-    pub fn new(luma: Luma) -> Self {
+    pub fn new(luma: Luma, stdout: fs::File) -> Self {
         Self {
             quit: false,
             draw: true,
-            term: Terminal::new(),
+            term: Terminal::new(stdout),
             mode: Mode::default(),
             luma,
         }
@@ -76,31 +78,9 @@ impl App {
             crossterm::event::Event::FocusLost => {}
         }
     }
-}
 
-#[derive(Debug)]
-pub struct Terminal {
-    stdout: std::io::Stdout,
-    pub backend: tui::Terminal<tui::backend::CrosstermBackend<io::Stdout>>,
-}
-
-impl Terminal {
-    fn new() -> Self {
-        let backend =
-            tui::Terminal::new(tui::backend::CrosstermBackend::new(std::io::stdout())).unwrap();
-
-        let mut stdout = std::io::stdout();
-        crossterm::terminal::enable_raw_mode().unwrap();
-        crossterm::execute!(stdout, crossterm::terminal::EnterAlternateScreen).unwrap();
-
-        Self { stdout, backend }
-    }
-}
-
-impl Drop for Terminal {
-    fn drop(&mut self) {
-        crossterm::execute!(self.stdout, crossterm::terminal::LeaveAlternateScreen).unwrap();
-        crossterm::terminal::disable_raw_mode().unwrap();
+    pub fn finish(self) -> (Luma, Terminal) {
+        (self.luma, self.term)
     }
 }
 

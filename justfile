@@ -14,7 +14,7 @@ build:
 publish:
     cargo fmt
     cargo clippy -q -- -D warnings
-    ! rg 'blocking_read' src/
+    @just safety
     cargo test -q
 
 # Runs the code and then shows resulting logs
@@ -32,3 +32,7 @@ install: build
 # Prints the logs
 log:
     bat $HOME/.cache/luma.log
+
+# The functions must return true for safety to be garenteed
+safety:
+    ! rg " print" src

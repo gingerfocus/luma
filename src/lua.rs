@@ -15,7 +15,7 @@ async fn run() -> Result<()> {
     globals.set("luma", LUMA.read().unwrap());
 
     lua.set_hook(HookTriggers::EVERY_LINE, |_lua, debug| {
-        println!("line {}", debug.curr_line());
+        log::info!("line {}", debug.curr_line());
         Ok(())
     });
 
@@ -28,7 +28,7 @@ async fn run() -> Result<()> {
     )
     .exec();
     let greet = lua.create_function(|_, name: String| {
-        println!("Hello, {}!", name);
+        log::info!("Hello, {}!", name);
         Ok(())
     });
 
@@ -48,8 +48,8 @@ async fn run() -> Result<()> {
     let table1 = lua.create_table()?;
     table1.set(1, "value")?;
 
-    let print_person = lua.create_function(|_, (name, age): (String, u8)| {
-        println!("{} is {} years old!", name, age);
+    let p_person = lua.create_function(|_, (name, age): (String, u8)| {
+        log::info!("{} is {} years old!", name, age);
         Ok(())
     });
 

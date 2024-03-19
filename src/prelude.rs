@@ -18,9 +18,9 @@ pub use std::sync::mpsc;
 pub use std::{env, fmt, fs, io};
 
 // use crate::state::OpenCommand;
-// pub const LINK_OPENER: OpenCommand<1> = OpenCommand::new("firefox", ["--private-window"]);
-// pub const FILE_OPENER: OpenCommand<0> = OpenCommand::new("mpv", []);
-// pub const DOWNLOAD_DIR: &str = concat!(env!("HOME"), "/dl");
+// pub const LINK_OPENER: OpenCommand = OpenCommand::new("brave", &[]);
+// pub const FILE_OPENER: OpenCommand = OpenCommand::new("mpv", &[]);
+// pub const DOWNLOAD_DIR: &str = concat!(env!("HOME"), "/dln");
 
 #[allow(dead_code)]
 pub fn default<T: Default>() -> T {
