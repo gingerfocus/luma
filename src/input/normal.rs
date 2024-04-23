@@ -1,28 +1,59 @@
-use crate::{app::State, event::Key, input::Msg};
+use crate::{
+    app::{Mode, State},
+    event::Key,
+    input::Msg,
+};
 
-pub fn handle(key: Key, _stat: &mut State) -> Msg {
-    match key {
-        Key::Char('q') | Key::Ctrl('c') => Msg::Quit,
-        Key::Enter => Msg::Edit,
-        Key::Tab => todo!(),
-        Key::Backspace => todo!(),
-        Key::Esc => todo!(),
-        Key::Left => todo!(),
-        Key::Right => todo!(),
-        Key::Up => todo!(),
-        Key::Down => todo!(),
-        Key::Ins => todo!(),
-        Key::Delete => todo!(),
-        Key::Home => todo!(),
-        Key::End => todo!(),
-        Key::PageUp => todo!(),
-        Key::PageDown => todo!(),
-        Key::F(_) => todo!(),
-        Key::Char(_) => todo!(),
-        Key::Ctrl(_) => todo!(),
-        Key::Alt(_) => todo!(),
-        Key::Unknown => todo!(),
-    }
+pub fn handle(key: Key, stat: &mut State) -> Option<Msg> {
+    let msg = match key {
+        Key::Esc | Key::Char('q') | Key::Ctrl('c') => Msg::Quit,
+
+        Key::Ins | Key::Char('e') => Msg::Edit,
+        Key::Char('r') => Msg::RenameTab,
+
+        Key::Char('a') => Msg::Add,
+        Key::Char('n') => Msg::AddTab,
+
+        Key::Enter | Key::Char('o') => Msg::Open,
+
+        Key::Tab => Msg::SelectTab(stat.tabb + 1),
+        Key::ShiftTab => Msg::SelectTab(stat.tabb.saturating_sub(1)),
+
+        Key::Delete | Key::Backspace | Key::Char('d') => {
+            Msg::ChangeMode(Mode::Delete(crate::app::Item::Link))
+        }
+        Key::Char('D') => Msg::ChangeMode(Mode::Delete(crate::app::Item::Tab)),
+
+        Key::Up | Key::Char('k') => Msg::MoveUp(1),
+        Key::Down | Key::Char('j') => Msg::MoveDown(1),
+
+        Key::End | Key::Char('g') => Msg::MoveDown(usize::MAX),
+        Key::Char('G') => Msg::MoveUp(usize::MAX),
+
+        Key::PageUp | Key::Ctrl('u') => Msg::MoveUp(20),
+        Key::PageDown | Key::Ctrl('d') => Msg::MoveDown(20),
+
+        Key::Char('1') => Msg::SelectTab(0),
+        Key::Char('2') => Msg::SelectTab(1),
+        Key::Char('3') => Msg::SelectTab(2),
+        Key::Char('4') => Msg::SelectTab(3),
+        Key::Char('5') => Msg::SelectTab(4),
+        Key::Char('6') => Msg::SelectTab(5),
+        Key::Char('7') => Msg::SelectTab(6),
+        Key::Char('8') => Msg::SelectTab(7),
+        Key::Char('9') => Msg::SelectTab(8),
+        Key::Char('0') => Msg::SelectTab(9),
+
+        Key::Left | Key::Right => return None,
+        Key::Home => return None,
+
+        Key::Char(_) => return None,
+        Key::Ctrl(_) => return None,
+        Key::Alt(_) => return None,
+        Key::F(_) => return None,
+        Key::Unknown => return None,
+    };
+    Some(msg)
 }
 
 // use crate::event::Key;

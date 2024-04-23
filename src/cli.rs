@@ -1,21 +1,41 @@
 use std::path::PathBuf;
 
-use clap::Parser;
-
-#[derive(Parser, Debug)]
-#[clap(name = "Luma", author, version, about)]
+#[derive(Debug)]
 pub struct Args {
     /// The input file
-    #[arg()]
     pub input: PathBuf,
 
     /// Enables logging
-    #[arg(short, long, default_value_t = false)]
     pub log: bool,
 
     /// Path where log files should be written
-    #[arg(short = 'L', long = "log-file", value_name = "FILE")]
     pub file: Option<PathBuf>,
+}
+
+pub fn parse() -> Args {
+    let mut args = std::env::args();
+
+    let mut log = false;
+    let mut input = None;
+    let mut file = None;
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "-l" | "--log" => log = true,
+            "-L" | "--log-file" => {
+                let f = args.next().unwrap();
+                file = Some(PathBuf::from(f));
+            }
+            _ => input = Some(PathBuf::from(arg)),
+        }
+    }
+
+    if let Some(input) = input {
+        Args { input, log, file }
+    } else {
+        // show help
+        std::process::exit(1);
+    }
 }
 
 // mod thinking {

@@ -9,6 +9,7 @@ pub enum Key {
     Enter,
     /// Tabulation key
     Tab,
+    ShiftTab,
     /// Backspace key
     Backspace,
     /// Escape key
@@ -135,6 +136,12 @@ impl From<crossterm::event::KeyEvent> for Key {
                 code: event::KeyCode::Enter,
                 ..
             } => Key::Enter,
+
+            event::KeyEvent {
+                code: event::KeyCode::Tab,
+                modifiers: event::KeyModifiers::SHIFT,
+                ..
+            } => Key::ShiftTab,
             event::KeyEvent {
                 code: event::KeyCode::Tab,
                 ..

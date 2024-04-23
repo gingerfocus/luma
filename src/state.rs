@@ -1,15 +1,25 @@
-use std::{
-    ffi::OsStr,
-    process::{Command, Stdio},
-};
+use std::process::{Command, Stdio};
 
-use crate::prelude::*;
+use crate::{app::State, prelude::*};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Luma {
     /// First element is the name second is the links
     pub tabs: Vec<(String, Vec<Link>)>,
+}
+impl Luma {
+    pub fn get_selected(&self, state: &State) -> Option<&Link> {
+        self.tabs
+            .get(state.tabb)
+            .and_then(|x| x.1.get(state.selected))
+    }
+
+    pub fn get_mut_selected(&mut self, state: &State) -> Option<&mut Link> {
+        self.tabs
+            .get_mut(state.tabb)
+            .and_then(|x| x.1.get_mut(state.selected))
+    }
 }
 
 // #[derive(Default)]
@@ -23,17 +33,17 @@ pub struct Luma {
 pub struct Link {
     pub name: String,
     pub link: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // #[serde(default)]
     pub file: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // #[serde(default)]
     pub desc: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // #[serde(default)]
     pub artist: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // #[serde(default)]
     pub color: Option<String>,
 }
 

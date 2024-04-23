@@ -1,3 +1,7 @@
 /target/
 /refs/
 /data/
+/.direnv
+crates/pty/
+kms/zig-cache
+kms/zig-out

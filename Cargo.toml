@@ -1,3 +1,7 @@
+# [workspace]
+# members = ["crates/*"]
+# resolver = "2"
+
 [package]
 name = "luma"
 version = "0.3.1"
@@ -7,7 +11,7 @@ description = "Link management to organize the internet ⚡"
 [dependencies]
 tui = { package = "ratatui", version = "0.26" }
 crossterm = { version = "0.27", features = ["event-stream"] }
-clap = { version = "4", features = ["derive"] }
+# clap = { version = "4", features = ["derive"] }
 resu = { package = "error-stack", version = "0.4" }
 
 serde = { version = "1.0", features = ["derive"] }
@@ -17,8 +21,11 @@ tempfile = "3"
 
 simplelog = "0.12"
 log = "0.4"
+# pty = { path = "./crates/pty" }
+pty-process = "0.4"
 
-indexmap = { version = "2", features = ["serde"] }
+# camino = "1"
+# indexmap = { version = "2", features = ["serde"] }
 
 # mlua = { version = "0.9", features = ["luajit", "vendored"] }
 

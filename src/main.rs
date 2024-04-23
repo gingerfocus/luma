@@ -1,6 +1,6 @@
 //! A Program to unite the web and filesystem
 
-// #![warn(unused_crate_dependencies)]
+#![warn(unused_crate_dependencies)]
 // #![warn(missing_docs)]
 
 mod app;
@@ -18,7 +18,6 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use app::App;
-use clap::Parser;
 
 #[derive(Debug)]
 enum LumaError {
@@ -40,61 +39,65 @@ impl fmt::Display for LumaError {
 }
 impl Context for LumaError {}
 
-fn main() -> Result<(), LumaError> {
-    let args = cli::Args::parse();
-
-    args.log.then(|| init_logger(args.file));
-
-    let f = fs::File::open(&args.input).change_context(LumaError::Input)?;
-    let luma: Luma = json::from_reader(f).change_context(LumaError::Parse)?;
-    // let luma = Luma {
-    //     tabs: Vec::from([(
-    //         String::from("audios"),
-    //         Vec::from([
-    //             Link {
-    //                 name: String::from("example"),
-    //                 link: String::from("https://example.com"),
-    //                 ..Default::default()
-    //             },
-    //             Link {
-    //                 name: String::from("anilist"),
-    //                 link: String::from("https://anilist.co"),
-    //                 ..Default::default()
-    //             },
-    //         ]),
-    //     )]),
-    // };
-
-    // Safety: "I do solumnly swear that this is the only way I will write to
-    // stdout and understand that if I choose to do it in any additional way I
-    // will be remain content with my program exploding."
-    //      - Evan Stokdyk, 3/18/2024
-    let stdout = unsafe { fs::File::from_raw_fd(1) };
-
-    let mut app = App::new(luma, stdout);
-
+fn eloop<B: tui::backend::Backend + io::Write>(app: &mut App<B>) -> Result<(), LumaError> {
     app.redraw()
         .change_context(LumaError::Render)
         .attach_printable("Could perform first render. Is your terminal ok?")?;
 
     // --------------------------------------------
-    while !app.stat.quit {
+    while !app.state.quit {
         log::debug!("starting event loop.");
         if let Some(e) = read_event()? {
-            app.event(e);
+            app.event(e).change_context(LumaError::Event)?;
         }
-        if app.stat.draw {
+        if app.state.draw {
             app.draw().change_context(LumaError::Render)?;
-            app.stat.draw = false;
+            app.state.draw = false;
         }
     }
     // -----------------------------------------------
 
-    let (luma, _term) = app.finish();
+    Ok(())
+}
 
-    let f = fs::File::create("out.json").unwrap();
-    json::to_writer_pretty::<_, Luma>(f, &luma).unwrap();
-    // json::to_writer::<_, Luma>(f, &luma).unwrap();
+fn main() -> Result<(), LumaError> {
+    let args = cli::parse();
+
+    std::panic::set_hook(Box::new(|info| {
+        // it is ok to violate the safety I will talk about in 12 lines of code
+        // beacuse this is the only code that will run during a panic.
+        let mut stdout = std::io::stdout();
+
+        app::deinit(&mut stdout);
+
+        log::error!("{}", info);
+        eprintln!("{}", info);
+    }));
+
+    args.log.then(|| init_logger(args.file));
+
+    let f = fs::File::open(&args.input).change_context(LumaError::Input)?;
+    let luma: Luma = json::from_reader(f).change_context(LumaError::Parse)?;
+
+    // Safety: "I do solumnly swear that this is the only way I will write to
+    // stdout and understand that if I choose to do it in any additional way I
+    // will remain happy when my program explodes."
+    //      - Evan Stokdyk, 3/18/2024
+    let mut stdout = unsafe { fs::File::from_raw_fd(1) };
+
+    app::init(&mut stdout);
+    let mut app = App::new(luma, stdout);
+
+    let res = eloop(&mut app);
+
+    let (luma, mut term) = app.finish();
+    app::deinit(term.backend_mut());
+    res?;
+
+    // .change_context(LumaError::Panic);
+
+    let f = fs::File::create("out.json").change_context(LumaError::Input)?;
+    json::to_writer_pretty::<_, Luma>(f, &luma).change_context(LumaError::Parse)?;
 
     log::trace!("exit.");
 
@@ -107,7 +110,7 @@ fn main() -> Result<(), LumaError> {
 }
 
 fn read_event() -> Result<Option<crossterm::event::Event>, LumaError> {
-    if crossterm::event::poll(Duration::from_millis(200)).change_context(LumaError::Event)? {
+    if crossterm::event::poll(Duration::from_secs(3)).change_context(LumaError::Event)? {
         let e = crossterm::event::read().change_context(LumaError::Event)?;
         Ok(Some(e))
     } else {
@@ -137,3 +140,29 @@ fn init_logger(file: Option<PathBuf>) {
 
     log::debug!("log init");
 }
+
+use pty_process as _;
+// fn a() {
+//     use std::io::Read;
+//     let mut pty = pty_process::blocking::Pty::new().unwrap();
+//
+//     let (x, y) = crossterm::terminal::size().unwrap();
+//     pty.resize(pty_process::Size::new(x, y)).unwrap();
+//
+//     let mut cmd = pty_process::blocking::Command::new("nvim");
+//     let mut child = cmd.spawn(&pty.pts().unwrap()).unwrap();
+//     loop {
+//         if child.try_wait().unwrap().is_some() {
+//             break;
+//         }
+//         let mut buf = [0u8; 256];
+//         let len = pty.read(&mut buf).unwrap();
+//         if len == 0 {
+//             break;
+//         }
+//         use std::io::Write;
+//         std::io::stdout().write_all(&buf[..len]).unwrap();
+//         // let s = std::str::from_utf8(&buf[..len]).unwrap();
+//         // log::info!("{}", s);
+//     }
+// }
