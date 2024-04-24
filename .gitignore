@@ -2,6 +2,6 @@
 /refs/
 /data/
 /.direnv
+/kmss/zig-*
+result
 crates/pty/
-kms/zig-cache
-kms/zig-out

@@ -10,6 +10,13 @@ const drm = @cImport({
 });
 const print = std.debug.print;
 
+pub export var crtc: [*c]drm.drmModeCrtc = null;
+pub export var mode: drm.drmModeModeInfo = undefined;
+pub export var plane: [*c]drm.drmModePlane = null;
+
+// const stderr = std.io.getStdErr().writer();
+// const stdout = std.io.getStdOut().writer();
+
 pub export fn get_property_value(arg_drm_fd: c_int, arg_object_id: u32, arg_object_type: u32, arg_prop_name: [*c]const u8) u64 {
     var drm_fd = arg_drm_fd;
     var object_id = arg_object_id;
@@ -63,26 +70,19 @@ pub export fn add_property(arg_drm_fd: c_int, arg_req: ?*drm.drmModeAtomicReq, a
     _ = drm.drmModeAtomicAddProperty(req, object_id, prop_id, value);
 }
 
-pub export var crtc: [*c]drm.drmModeCrtc = null;
-// pub export var mode: [*c]drm.drmModeModeInfo = null;
-pub export var mode: drm.drmModeModeInfo = undefined;
-pub export var plane: [*c]drm.drmModePlane = null;
+pub fn main() !u8 {
+    var drm_fd: c_int = try std.os.open("/dev/dri/card0", std.os.O.RDWR | std.os.O.NONBLOCK, 0);
+    defer std.os.close(drm_fd);
 
-pub fn main() u8 {
-    var drm_fd: c_int = std.c.open("/dev/dri/card0", @as(c_int, 2) | @as(c_int, 2048));
-    if (drm_fd < @as(c_int, 0)) {
-        // perror("open failed");
-        return 1;
-    }
-    if (drm.drmSetClientCap(drm_fd, @as(u64, @bitCast(@as(c_long, @as(c_int, 2)))), @as(u64, @bitCast(@as(c_long, @as(c_int, 1))))) != @as(c_int, 0)) {
+    if (drm.drmSetClientCap(drm_fd, drm.DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1) != 0) {
         // perror("drmSetClientCap(UNIVERSAL_PLANES) failed");
-        return 1;
+        return error.no_client_caps;
     }
-    if (drm.drmSetClientCap(drm_fd, @as(u64, @bitCast(@as(c_long, @as(c_int, 3)))), @as(u64, @bitCast(@as(c_long, @as(c_int, 1))))) != @as(c_int, 0)) {
+    if (drm.drmSetClientCap(drm_fd, drm.DRM_CLIENT_CAP_ATOMIC, 1) != 0) {
         // perror("drmSetClientCap(ATOMIC) failed");
         return 1;
     }
-    var resources: [*c]drm.drmModeRes = drm.drmModeGetResources(drm_fd);
+    var resources: *drm.drmModeRes = drm.drmModeGetResources(drm_fd);
     {
         var i: c_int = 0;
         while (i < resources.*.count_crtcs) : (i += 1) {
@@ -98,19 +98,14 @@ pub fn main() u8 {
             crtc = null;
         }
     }
-    _ = blk: {
-        _ = @sizeOf(c_int);
-        break :blk blk_1: {
-            break :blk_1 if (crtc != @as([*c]drm.drmModeCrtc, @ptrCast(@alignCast(@as(?*anyopaque, @ptrFromInt(@as(c_int, 0))))))) {} else {
-                // __assert_fail("crtc != NULL", "04-animatefb.c", @as(c_uint, @bitCast(@as(c_int, 85))), "int main(int, char **)");
-                std.c.abort();
-            };
-        };
-    };
-    // _ = printf("Using CRTC %u\n", crtc.*.crtc_id);
+
+    std.debug.assert(crtc != null);
+    std.debug.print("Using CRTC {u}\n", crtc.*.crtc_id);
     mode = crtc.*.mode;
     // _ = printf("Using mode %dx%d %dHz\n", @as(c_int, @bitCast(@as(c_uint, mode.hdisplay))), @as(c_int, @bitCast(@as(c_uint, mode.vdisplay))), mode.vrefresh);
-    var planes: [*c]drm.drmModePlaneRes = drm.drmModeGetPlaneResources(drm_fd);
+
+    var planes: ?*drm.drmModePlaneRes = drm.drmModeGetPlaneResources(drm_fd);
+
     {
         var i: u32 = 0;
         while (i < planes.*.count_planes) : (i +%= 1) {
@@ -124,18 +119,13 @@ pub fn main() u8 {
             plane = null;
         }
     }
-    _ = blk: {
-        _ = @sizeOf(c_int);
-        break :blk blk_1: {
-            break :blk_1 if (plane != @as([*c]drm.drmModePlane, @ptrCast(@alignCast(@as(?*anyopaque, @ptrFromInt(@as(c_int, 0))))))) {} else {
-                std.c.abort();
-                // __assert_fail("plane != NULL", "04-animatefb.c", @as(c_uint, @bitCast(@as(c_int, 105))), "int main(int, char **)");
-            };
-        };
-    };
+
+    std.debug.assert(plane != null);
     // _ = printf("Using plane %u\n", plane.*.plane_id);
+
     drm.drmModeFreePlaneResources(planes);
     drm.drmModeFreeResources(resources);
+
     var width: c_int = @as(c_int, @bitCast(@as(c_uint, mode.hdisplay)));
     var height: c_int = @as(c_int, @bitCast(@as(c_uint, mode.vdisplay)));
 
@@ -213,11 +203,13 @@ pub fn main() u8 {
             add_property(drm_fd, req, plane_id, @as(c_uint, 4008636142), "CRTC_H", @as(u64, @bitCast(@as(c_long, height))));
             var flags: u32 = @as(u32, @bitCast(@as(c_int, 512)));
             var ret: c_int = drm.drmModeAtomicCommit(drm_fd, req, flags, @as(?*anyopaque, @ptrFromInt(@as(c_int, 0))));
+
             if (ret != @as(c_int, 0)) {
                 // perror("drmModeAtomicCommit failed");
                 return 1;
             }
 
+            // about 60hz
             std.time.sleep(16666667);
         }
     }

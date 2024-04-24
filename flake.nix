@@ -16,20 +16,22 @@
       zig-builder = "${pkgs.zig}/bin/zig build --prefix $out --cache-dir /build/zig-cache --global-cache-dir /build/global-cache";
       enable-demo = false;
     in {
-      packages.default = pkgs.stdenv.mkDerivation {
-        pname = "treet";
+      packages = rec {
+      default = kmss;
+        kmss = pkgs.stdenv.mkDerivation {
+        pname = "kmss";
         version = "0.0.1";
-        src = ./.;
+        src = ./kmss;
 
         buildInputs = [pkgs.libdrm];
 
-        buildPhase =
-          zig-builder;
+        buildPhase = zig-builder;
 
         meta = {
           maintainers = ["Evan Stokdyk <evan.stokdyk@gmail.com>"];
           description = "Tree Sitter Pre-Processor for Shards";
         };
+      };
       };
     });
 }
