@@ -19,10 +19,10 @@ json = { package = "serde_json", version = "1" }
 yaml = { package = "serde_yaml", version = "0.9" }
 tempfile = "3"
 
-simplelog = "0.12"
+# simplelog = "0.12"
 log = "0.4"
 # pty = { path = "./crates/pty" }
-pty-process = "0.4"
+# pty-process = "0.4"
 
 # camino = "1"
 # indexmap = { version = "2", features = ["serde"] }

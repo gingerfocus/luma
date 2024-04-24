@@ -1,7 +1,2 @@
 /target/
-/refs/
-/data/
 /.direnv
-/kmss/zig-*
-result
-crates/pty/

@@ -1,8 +1,38 @@
 {
   "tabs": [
     [
-      "testiong",
-      []
+      "website",
+      [
+        {
+          "name": "example",
+          "link": "https://example.com",
+          "file": null,
+          "desc": null,
+          "artist": null,
+          "color": null
+        },
+        {
+          "name": "anilist",
+          "link": "https://anilist.co",
+          "file": null,
+          "desc": null,
+          "artist": null,
+          "color": null
+        }
+      ]
+    ],
+    [
+      "audios",
+      [
+        {
+          "name": "youtube",
+          "link": "https://youtube.com",
+          "file": null,
+          "desc": null,
+          "artist": null,
+          "color": null
+        }
+      ]
     ]
   ]
 }

@@ -17,21 +17,21 @@
       enable-demo = false;
     in {
       packages = rec {
-      default = kmss;
+        default = kmss;
         kmss = pkgs.stdenv.mkDerivation {
-        pname = "kmss";
-        version = "0.0.1";
-        src = ./kmss;
+          pname = "kmss";
+          version = "0.0.1";
+          src = ./kmss;
 
-        buildInputs = [pkgs.libdrm];
+          buildInputs = [pkgs.libdrm];
 
-        buildPhase = zig-builder;
+          buildPhase = zig-builder;
 
-        meta = {
-          maintainers = ["Evan Stokdyk <evan.stokdyk@gmail.com>"];
-          description = "Tree Sitter Pre-Processor for Shards";
+          meta = {
+            maintainers = ["Evan Stokdyk <evan.stokdyk@gmail.com>"];
+            description = "Tree Sitter Pre-Processor for Shards";
+          };
         };
-      };
       };
     });
 }

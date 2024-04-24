@@ -1,7 +1,9 @@
 //! A Program to unite the web and filesystem
 
-#![warn(unused_crate_dependencies)]
-// #![warn(missing_docs)]
+#![warn(
+    unused_crate_dependencies
+    // missing_docs
+)]
 
 mod app;
 mod cli;
@@ -105,7 +107,7 @@ fn main() -> Result<(), LumaError> {
 
     // HACK: at the end of the block the [`App`] is dropped. It contains a owned
     // handle to stdout and so will close it. Returning a result from this
-    // function causes it to _print to stderr which is still open at that point
+    // function causes it to _print_ to stderr which is still open at that point
     // an so the error displays correctly.
 }
 
@@ -119,6 +121,8 @@ fn read_event() -> Result<Option<crossterm::event::Event>, LumaError> {
 }
 
 fn init_logger(file: Option<PathBuf>) {
+    return;
+
     let file = file.unwrap_or_else(|| {
         PathBuf::from(env::var("XDG_CACHE_HOME").unwrap_or_else(|_| {
             let home = env::var("HOME").expect("You don't have a $HOME???");
@@ -132,16 +136,16 @@ fn init_logger(file: Option<PathBuf>) {
         return;
     };
 
-    let _ = simplelog::WriteLogger::init(
-        simplelog::LevelFilter::Trace,
-        simplelog::Config::default(),
-        file,
-    );
+    // let _ = simplelog::WriteLogger::init(
+    //     simplelog::LevelFilter::Trace,
+    //     simplelog::Config::default(),
+    //     file,
+    // );
 
     log::debug!("log init");
 }
 
-use pty_process as _;
+// use pty_process as _;
 // fn a() {
 //     use std::io::Read;
 //     let mut pty = pty_process::blocking::Pty::new().unwrap();
