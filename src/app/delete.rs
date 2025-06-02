@@ -28,7 +28,7 @@ pub fn draw(f: &mut Frame<'_>, luma: &Luma, stat: &State) {
     f.render_widget(p, fbox);
 }
 
-pub fn float_box(wind: Rect) -> Rect {
+fn float_box(wind: Rect) -> Rect {
     let center = Layout::new(
         Direction::Horizontal,
         [

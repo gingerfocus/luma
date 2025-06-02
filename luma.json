@@ -1,24 +1,26 @@
 {
   "tabs": [
     [
-      "website",
+      "music",
       [
         {
-          "name": "example",
-          "link": "https://example.com"
-        },
-        {
-          "name": "anilist",
-          "link": "https://anilist.co"
+          "name": "Fly me to the Moon",
+          "link": "https://www.youtube.com/watch?v=2dmIVyQast0",
+          "desc": "Sung by two japanese high schoolers way back when",
+          "artist": null,
+          "color": null
         }
       ]
     ],
     [
-      "audios",
+      "yoga",
       [
         {
-          "name": "youtube",
-          "link": "https://youtube.com"
+          "name": "Zen Koans",
+          "link": "https://www.youtube.com/watch?v=Y0p663Ot8mo",
+          "desc": null,
+          "artist": "AudioBuddha",
+          "color": null
         }
       ]
     ]

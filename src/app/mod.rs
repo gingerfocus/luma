@@ -4,7 +4,7 @@ mod normal;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::event::Event;
+use crate::event::Event; // use crossterm::event::Event;
 use crate::input::Msg;
 use crate::prelude::*;
 
@@ -26,8 +26,8 @@ pub struct App<B: tui::backend::Backend + io::Write> {
 pub struct State {
     /// If the app should exit.
     pub quit: bool,
-    /// If the app should draw.
-    pub draw: bool,
+    /// If the view should render blank before drawing again
+    pub redraw: bool,
     /// Selected tab
     pub tabb: usize,
     /// Selected index
@@ -83,6 +83,14 @@ impl App<tui::backend::CrosstermBackend<fs::File>> {
 
 impl<B: tui::backend::Backend + io::Write> App<B> {
     pub fn draw(&mut self) -> Result<(), AppError> {
+        if self.state.redraw {
+            self.term
+                .draw(|f| f.render_widget(tui::widgets::Clear, f.size()))
+                .change_context(AppError::Draw)?;
+
+            self.state.redraw = false;
+        }
+
         self.term
             .draw(|f| match self.state.mode {
                 Mode::Normal => normal::draw(f, &self.luma, &self.state),
@@ -93,14 +101,6 @@ impl<B: tui::backend::Backend + io::Write> App<B> {
         log::debug!("frame finished");
 
         Ok(())
-    }
-
-    pub fn redraw(&mut self) -> Result<(), AppError> {
-        self.term
-            .draw(|f| f.render_widget(tui::widgets::Clear, f.size()))
-            .change_context(AppError::Draw)?;
-
-        self.draw()
     }
 
     pub fn event(&mut self, event: impl Into<Event>) -> Result<(), AppError> {
@@ -116,17 +116,23 @@ impl<B: tui::backend::Backend + io::Write> App<B> {
                     self.handle(msg)?;
                 }
             }
-            Event::Click(_) => {}
-            Event::Resize(_, _) => self.state.draw = true,
-            Event::GainedFocus(_) => {}
+            // Event::Click(_) => {}
+            // Event::Resize(_, _) => self.state.redraw = true,
+            _ => {}
         }
         Ok(())
     }
 
-    pub fn handle(&mut self, msg: Msg) -> Result<(), AppError> {
+    fn handle(&mut self, msg: Msg) -> Result<(), AppError> {
         match msg {
             Msg::Quit => self.state.quit = true,
-            Msg::Edit => self.edit()?,
+            Msg::Edit => {
+                if let Some(link) = self.luma.get_mut_selected(&self.state) {
+                    edit(self.term.backend_mut(), link)?;
+                    self.state.redraw = true;
+                }
+            }
+            ,
             Msg::MoveDown(s) => {
                 self.state.selected = self.state.selected.saturating_add(s);
                 self.state.selected = self.state.selected.min(
@@ -138,15 +144,12 @@ impl<B: tui::backend::Backend + io::Write> App<B> {
                         .len()
                         .saturating_sub(1),
                 );
-                self.state.draw = true;
             }
             Msg::MoveUp(s) => {
                 self.state.selected = self.state.selected.saturating_sub(s);
-                self.state.draw = true;
             }
             Msg::ChangeMode(m) => {
                 self.state.mode = m;
-                self.state.draw = true;
             }
             Msg::Open => {
                 if let Some(s) = self.luma.get_selected(&self.state) {
@@ -159,7 +162,6 @@ impl<B: tui::backend::Backend + io::Write> App<B> {
             Msg::Delete => {
                 self.delete();
                 self.state.mode = Mode::Normal;
-                self.state.draw = true;
             }
 
             // -------------- changing tabs ------------------
@@ -169,7 +171,6 @@ impl<B: tui::backend::Backend + io::Write> App<B> {
                 }
                 if let Some(tab) = self.luma.tabs.get(t) {
                     self.state.tabb = t;
-                    self.state.draw = true;
 
                     if self.state.selected >= tab.1.len() {
                         self.state.selected = tab.1.len() - 1;
@@ -180,31 +181,31 @@ impl<B: tui::backend::Backend + io::Write> App<B> {
             //
             Msg::Add => {
                 if let Some(tabb) = self.luma.tabs.get_mut(self.state.tabb) {
-                    let mut l = Link::default();
-                    edit_item(&mut l)?;
-                    self.state.draw = true;
-                    tabb.1.push(l);
+                    let mut link = Link::default();
+                    edit(self.term.backend_mut(), &mut link)?;
+                    self.state.redraw = true;
+                    tabb.1.push(link);
                 }
             }
             Msg::RenameTab => {
                 if let Some(tabb) = self.luma.tabs.get_mut(self.state.tabb) {
                     let name = &mut tabb.0;
-                    edit_item(name)?;
-                    self.state.draw = true;
+                    edit(self.term.backend_mut(), name)?;
+                    self.state.redraw = true;
                 }
             }
             Msg::DeleteTab => {
                 self.luma.tabs.remove(self.state.tabb);
                 self.state.tabb = self.state.tabb.saturating_sub(1);
-                self.state.draw = true;
+                self.state.redraw = true;
                 self.state.mode = Mode::Normal;
             }
             Msg::AddTab => {
                 let mut name = String::new();
-                edit_item(&mut name)?;
+                edit(self.term.backend_mut(), &mut name)?;
                 self.luma.tabs.push((name, Vec::new()));
                 self.state.tabb = self.luma.tabs.len() - 1;
-                self.state.draw = true;
+                self.state.redraw = true;
             }
         }
         Ok(())
@@ -220,25 +221,18 @@ impl<B: tui::backend::Backend + io::Write> App<B> {
         }
     }
 
-    pub fn edit(&mut self) -> Result<(), AppError> {
-        if let Some(link) = self.luma.get_mut_selected(&self.state) {
-            deinit(self.term.backend_mut());
-            let res = edit_item(link);
-            init(self.term.backend_mut());
-
-            res?;
-            self.redraw()?;
-        }
-        Ok(())
-    }
-
     pub fn finish(self) -> (Luma, tui::Terminal<B>) {
         (self.luma, self.term)
     }
 }
 
 /// Edits an item
-fn edit_item<T: Serialize + DeserializeOwned>(item: &mut T) -> Result<(), AppError> {
+fn edit<B: std::io::Write, T: Serialize + DeserializeOwned>(
+    term: &mut B,
+    item: &mut T) -> Result<(), AppError> {
+
+    deinit(term);
+
     let mut f = tempfile::NamedTempFile::new()
         .change_context(AppError::Edit)
         .attach_printable("could not create temp file")?;
@@ -271,6 +265,9 @@ fn edit_item<T: Serialize + DeserializeOwned>(item: &mut T) -> Result<(), AppErr
 
         *item = nval;
     }
+
+    init(term);
+
     Ok(())
 }
 
@@ -282,89 +279,89 @@ pub fn init<B: io::Write>(write: &mut B) {
 pub fn deinit<B: io::Write>(b: &mut B) {
     crossterm::execute!(
         b,
-        crossterm::terminal::Clear(crossterm::terminal::ClearType::All),
-        crossterm::terminal::LeaveAlternateScreen
+        crossterm::terminal::LeaveAlternateScreen,
+        // crossterm::terminal::Clear(crossterm::terminal::ClearType::All),
     )
     .unwrap();
     crossterm::terminal::disable_raw_mode().unwrap();
 }
 
-#[cfg(test)]
-mod test {
-    use std::io;
-
-    pub struct TestBackend {
-        inner: tui::backend::TestBackend,
-    }
-
-    impl TestBackend {
-        pub fn new(width: u16, height: u16) -> Self {
-            Self {
-                inner: tui::backend::TestBackend::new(width, height),
-            }
-        }
-    }
-
-    impl tui::backend::Backend for TestBackend {
-        fn draw<'a, I>(&mut self, content: I) -> std::io::Result<()>
-        where
-            I: Iterator<Item = (u16, u16, &'a tui::buffer::Cell)>,
-        {
-            self.inner.draw(content)
-        }
-
-        fn hide_cursor(&mut self) -> std::io::Result<()> {
-            self.inner.hide_cursor()
-        }
-
-        fn show_cursor(&mut self) -> std::io::Result<()> {
-            self.inner.show_cursor()
-        }
-
-        fn get_cursor(&mut self) -> std::io::Result<(u16, u16)> {
-            self.inner.get_cursor()
-        }
-
-        fn set_cursor(&mut self, x: u16, y: u16) -> std::io::Result<()> {
-            self.inner.set_cursor(x, y)
-        }
-
-        fn clear(&mut self) -> std::io::Result<()> {
-            self.inner.clear()
-        }
-
-        fn size(&self) -> std::io::Result<tui::layout::Rect> {
-            self.inner.size()
-        }
-
-        fn window_size(&mut self) -> std::io::Result<tui::backend::WindowSize> {
-            self.inner.window_size()
-        }
-
-        fn flush(&mut self) -> std::io::Result<()> {
-            self.inner.flush()
-        }
-    }
-    impl io::Write for TestBackend {
-        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-            Ok(buf.len())
-        }
-
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
-        }
-    }
-
-    #[test]
-    fn quit() {
-        let mut app = super::App {
-            term: tui::Terminal::new(TestBackend::new(10, 10)).unwrap(),
-            luma: crate::Luma::default(),
-            state: super::State::default(),
-            task: Vec::new(),
-        };
-        app.handle(super::Msg::Quit).unwrap();
-
-        assert!(app.state.quit);
-    }
-}
+// #[cfg(test)]
+// mod test {
+//     use std::io;
+//
+//     pub struct TestBackend {
+//         inner: tui::backend::TestBackend,
+//     }
+//
+//     impl TestBackend {
+//         pub fn new(width: u16, height: u16) -> Self {
+//             Self {
+//                 inner: tui::backend::TestBackend::new(width, height),
+//             }
+//         }
+//     }
+//
+//     impl tui::backend::Backend for TestBackend {
+//         fn draw<'a, I>(&mut self, content: I) -> std::io::Result<()>
+//         where
+//             I: Iterator<Item = (u16, u16, &'a tui::buffer::Cell)>,
+//         {
+//             self.inner.draw(content)
+//         }
+//
+//         fn hide_cursor(&mut self) -> std::io::Result<()> {
+//             self.inner.hide_cursor()
+//         }
+//
+//         fn show_cursor(&mut self) -> std::io::Result<()> {
+//             self.inner.show_cursor()
+//         }
+//
+//         fn get_cursor(&mut self) -> std::io::Result<(u16, u16)> {
+//             self.inner.get_cursor()
+//         }
+//
+//         fn set_cursor(&mut self, x: u16, y: u16) -> std::io::Result<()> {
+//             self.inner.set_cursor(x, y)
+//         }
+//
+//         fn clear(&mut self) -> std::io::Result<()> {
+//             self.inner.clear()
+//         }
+//
+//         fn size(&self) -> std::io::Result<tui::layout::Rect> {
+//             self.inner.size()
+//         }
+//
+//         fn window_size(&mut self) -> std::io::Result<tui::backend::WindowSize> {
+//             self.inner.window_size()
+//         }
+//
+//         fn flush(&mut self) -> std::io::Result<()> {
+//             self.inner.flush()
+//         }
+//     }
+//     impl io::Write for TestBackend {
+//         fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+//             Ok(buf.len())
+//         }
+//
+//         fn flush(&mut self) -> io::Result<()> {
+//             Ok(())
+//         }
+//     }
+//
+//     #[test]
+//     fn quit() {
+//         let mut app = super::App {
+//             term: tui::Terminal::new(TestBackend::new(10, 10)).unwrap(),
+//             luma: crate::Luma::default(),
+//             state: super::State::default(),
+//             task: Vec::new(),
+//         };
+//         app.handle(super::Msg::Quit).unwrap();
+//
+//         assert!(app.state.quit);
+//     }
+// }

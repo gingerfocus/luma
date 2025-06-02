@@ -11,12 +11,10 @@ mod event;
 mod input;
 mod prelude;
 mod state;
-mod ui;
 
 use crate::prelude::*;
 
 use std::os::fd::FromRawFd;
-use std::path::PathBuf;
 use std::time::Duration;
 
 use app::App;
@@ -42,7 +40,7 @@ impl fmt::Display for LumaError {
 impl Context for LumaError {}
 
 fn eloop<B: tui::backend::Backend + io::Write>(app: &mut App<B>) -> Result<(), LumaError> {
-    app.redraw()
+    app.draw()
         .change_context(LumaError::Render)
         .attach_printable("Could perform first render. Is your terminal ok?")?;
 
@@ -52,10 +50,8 @@ fn eloop<B: tui::backend::Backend + io::Write>(app: &mut App<B>) -> Result<(), L
         if let Some(e) = read_event()? {
             app.event(e).change_context(LumaError::Event)?;
         }
-        if app.state.draw {
-            app.draw().change_context(LumaError::Render)?;
-            app.state.draw = false;
-        }
+
+        app.draw().change_context(LumaError::Render)?;
     }
     // -----------------------------------------------
 
@@ -76,10 +72,11 @@ fn main() -> Result<(), LumaError> {
         eprintln!("{}", info);
     }));
 
-    args.log.then(|| init_logger(args.file));
+    // args.log.then(|| init_logger(args.file));
 
-    let f = fs::File::open(&args.input).change_context(LumaError::Input)?;
-    let luma: Luma = json::from_reader(f).change_context(LumaError::Parse)?;
+    let mut f = std::fs::OpenOptions::new().read(true).write(true).open(&args.input)
+        .change_context(LumaError::Input)?;
+    let luma: Luma = json::from_reader(&mut f).change_context(LumaError::Parse)?;
 
     // Safety: "I do solumnly swear that this is the only way I will write to
     // stdout and understand that if I choose to do it in any additional way I
@@ -98,7 +95,7 @@ fn main() -> Result<(), LumaError> {
 
     // .change_context(LumaError::Panic);
 
-    let f = fs::File::create("out.json").change_context(LumaError::Input)?;
+    io::Seek::rewind(&mut f).change_context(LumaError::Input)?;
     json::to_writer_pretty::<_, Luma>(f, &luma).change_context(LumaError::Parse)?;
 
     log::trace!("exit.");
@@ -120,30 +117,32 @@ fn read_event() -> Result<Option<crossterm::event::Event>, LumaError> {
     }
 }
 
-fn init_logger(file: Option<PathBuf>) {
-    return;
-
-    let file = file.unwrap_or_else(|| {
-        PathBuf::from(env::var("XDG_CACHE_HOME").unwrap_or_else(|_| {
-            let home = env::var("HOME").expect("You don't have a $HOME???");
-            format!("{home}/.cache")
-        }))
-        .join("luma.log")
-    });
-
-    let Ok(file) = fs::File::create(&file) else {
-        eprintln!("could not open file to log: {:?}", file);
-        return;
-    };
-
-    // let _ = simplelog::WriteLogger::init(
-    //     simplelog::LevelFilter::Trace,
-    //     simplelog::Config::default(),
-    //     file,
-    // );
-
-    log::debug!("log init");
-}
+// fn init_logger(file: Option<PathBuf>) {
+//     if true {
+//         return
+//     }
+//
+//     let file = file.unwrap_or_else(|| {
+//         PathBuf::from(env::var("XDG_CACHE_HOME").unwrap_or_else(|_| {
+//             let home = env::var("HOME").expect("You don't have a $HOME???");
+//             format!("{home}/.cache")
+//         }))
+//         .join("luma.log")
+//     });
+//
+//     let Ok(file) = fs::File::create(&file) else {
+//         eprintln!("could not open file to log: {:?}", file);
+//         return;
+//     };
+//
+//     let _ = simplelog::WriteLogger::init(
+//         simplelog::LevelFilter::Trace,
+//         simplelog::Config::default(),
+//         file,
+//     );
+//
+//     log::debug!("log init");
+// }
 
 // use pty_process as _;
 // fn a() {

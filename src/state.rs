@@ -22,19 +22,11 @@ impl Luma {
     }
 }
 
-// #[derive(Default)]
-// pub struct State {
-//     pub selected_tab: usize,
-//     pub selected_index: usize,
-//     pub unsaved_changes: bool,
-// }
-
 #[derive(Debug, Default, Serialize, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Link {
     pub name: String,
     pub link: String,
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub file: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     // #[serde(default)]
@@ -46,19 +38,6 @@ pub struct Link {
     // #[serde(default)]
     pub color: Option<String>,
 }
-
-// impl Link {
-//     pub fn new(name: impl Into<String>, link: impl Into<String>) -> Link {
-//         Link {
-//             name: name.into(),
-//             link: link.into(),
-//             file: None,
-//             desc: None,
-//             artist: None,
-//             color: None,
-//         }
-//     }
-// }
 
 #[derive(Debug)]
 pub struct OpenCommand {
