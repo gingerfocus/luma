@@ -72,10 +72,9 @@ fn main() -> Result<(), LumaError> {
 
     args.log.then(|| init_logger(args.file));
 
-    let mut f = std::fs::File::open(&args.input)
-        // let mut f = std::fs::OpenOptions::new().read(true).write(true).open(&args.input)
-        .change_context(LumaError::Input)?;
+    let mut f = std::fs::File::open(&args.input).change_context(LumaError::Input)?;
     let luma: Luma = json::from_reader(&mut f).change_context(LumaError::Parse)?;
+    drop(f); // close the file
 
     // Safety: "I do solumnly swear that this is the only way I will write to
     // stdout and understand that if I choose to do it in any additional way I
@@ -99,7 +98,7 @@ fn main() -> Result<(), LumaError> {
         .open(&args.input)
         .change_context(LumaError::Input)?;
 
-    json::to_writer_pretty::<_, Luma>(f, &luma).change_context(LumaError::Parse)?;
+    json::to_writer_pretty(f, &luma).change_context(LumaError::Parse)?;
 
     log::trace!("exit.");
 

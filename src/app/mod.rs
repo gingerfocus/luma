@@ -1,8 +1,8 @@
 mod delete;
 mod normal;
 
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use crate::event::Event; // use crossterm::event::Event;
 use crate::input::Msg;
@@ -172,7 +172,7 @@ impl<B: tui::backend::Backend + io::Write> App<B> {
                     self.state.tabb = t;
 
                     if self.state.selected >= tab.1.len() {
-                        self.state.selected = tab.1.len() - 1;
+                        self.state.selected = tab.1.len().saturating_sub(1);
                     }
                 }
             }
@@ -241,7 +241,7 @@ fn edit<B: std::io::Write, T: Serialize + DeserializeOwned>(
 
     log::debug!("tempfile path: {:?}", file);
 
-    yaml::to_writer(&mut f, item).unwrap();
+    json::to_writer_pretty(&mut f, item).unwrap();
 
     let mut ch = crate::prelude::TEXT_OPENER
         .spawn(&file)
@@ -258,7 +258,7 @@ fn edit<B: std::io::Write, T: Serialize + DeserializeOwned>(
             .change_context(AppError::Edit)
             .attach_printable("could not seek to start of file")?;
 
-        let nval = yaml::from_reader(f)
+        let nval = json::from_reader(f)
             .change_context(AppError::Edit)
             .attach_printable("input was no of valid form")?;
 

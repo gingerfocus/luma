@@ -14,7 +14,7 @@ pub struct EditorData {
     resp: oneshot::Sender<String>,
 }
 
-const LUMA_TEMPFILE: &str = "/tmp/luma-edit.yaml";
+const LUMA_TEMPFILE: &str = "/tmp/luma-edit.json";
 
 impl Programs {
     pub async fn run(self) -> Result<()> {

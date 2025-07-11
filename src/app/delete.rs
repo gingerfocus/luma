@@ -1,8 +1,8 @@
 use tui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     widgets::{Block, Borders, Clear, Paragraph},
-    Frame,
 };
 
 use super::State;

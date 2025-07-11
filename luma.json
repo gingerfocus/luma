@@ -1,28 +1,27 @@
 {
   "tabs": [
     [
-      "music",
+      "example",
       [
         {
-          "name": "Fly me to the Moon",
-          "link": "https://www.youtube.com/watch?v=2dmIVyQast0",
-          "desc": "Sung by two japanese high schoolers way back when",
+          "name": "my favoite site",
+          "link": "example.com",
+          "desc": null,
+          "artist": null,
+          "color": null
+        },
+        {
+          "name": "another one",
+          "link": "kamio.ink",
+          "desc": null,
           "artist": null,
           "color": null
         }
       ]
     ],
     [
-      "yoga",
-      [
-        {
-          "name": "Zen Koans",
-          "link": "https://www.youtube.com/watch?v=Y0p663Ot8mo",
-          "desc": null,
-          "artist": "AudioBuddha",
-          "color": null
-        }
-      ]
+      "empty tab",
+      []
     ]
   ]
 }

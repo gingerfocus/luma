@@ -1,9 +1,9 @@
 use tui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     symbols,
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Tabs},
-    Frame,
 };
 
 use crate::state::Link;
@@ -27,7 +27,7 @@ pub fn draw(f: &mut Frame<'_>, luma: &Luma, state: &State) {
 
 fn main_pane(f: &mut Frame<'_>, area: Rect, luma: &Luma, state: &State) {
     if luma.tabs.is_empty() {
-        let p = Paragraph::new("No links to display. Try creating a tab with 'n'")
+        let p = Paragraph::new("No tabs to display. Try creating one with 'n'")
             .alignment(tui::layout::Alignment::Center)
             .block(Block::new().borders(Borders::all()));
         f.render_widget(p, area);
@@ -68,7 +68,15 @@ fn disp_pane(f: &mut Frame<'_>, area: Rect, luma: &Luma, state: &State) {
             .split(area);
 
         let list_area = div[0];
-        list_pane(f, list_area, items, state);
+        if items.is_empty() {
+            let p = Paragraph::new("No links to display. Try creating a link with 'a'")
+                .alignment(tui::layout::Alignment::Center)
+                .block(Block::new().borders(Borders::all()));
+            f.render_widget(p, list_area);
+            return;
+        } else {
+            list_pane(f, list_area, items, state);
+        }
 
         // let mut g = 0u8;
         // let mut r = 255u8;
@@ -130,7 +138,9 @@ fn tabb_barr(f: &mut Frame<'_>, area: Rect, luma: &Luma, state: &State) {
 }
 
 fn help_barr(f: &mut Frame<'_>, area: Rect) {
-    let p = Paragraph::new("Keys: q: quit, j: down, k: up, e: edit, o: open, d: delete, a: add, n: new tab, r: rename tab");
+    let p = Paragraph::new(
+        "Keys: q: quit, j: down, k: up, e: edit, o: open, d: delete, a: add, n: new tab, r: rename tab",
+    );
     f.render_widget(p, area)
 }
 

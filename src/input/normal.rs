@@ -101,7 +101,7 @@ pub fn handle(key: Key, stat: &mut State) -> Option<Msg> {
 //     let text = {
 //         let luma = util::globals::get_luma!();
 //         let link = luma.get_index(tab).unwrap().1.get(index).unwrap();
-//         yaml::to_string(link).unwrap()
+//         json::to_string(link).unwrap()
 //     };
 //
 //     let (tx, rx) = oneshot::channel::<String>();
@@ -109,7 +109,7 @@ pub fn handle(key: Key, stat: &mut State) -> Option<Msg> {
 //     let h = tokio::spawn(async move {
 //         if let Ok(resp) = rx.await {
 //             log::debug!("got data from editor");
-//             if let Ok(link) = yaml::from_str(&resp) {
+//             if let Ok(link) = json::from_str(&resp) {
 //                 let (tab, index) = util::get_tab_and_index().await;
 //
 //                 let mut luma = LUMA.write().await;
@@ -136,7 +136,7 @@ pub fn handle(key: Key, stat: &mut State) -> Option<Msg> {
 //
 //     let text = {
 //         let link = Link::stub();
-//         yaml::to_string(&link).unwrap()
+//         json::to_string(&link).unwrap()
 //     };
 //
 //     let (tx, rx) = oneshot::channel::<String>();
@@ -144,7 +144,7 @@ pub fn handle(key: Key, stat: &mut State) -> Option<Msg> {
 //     let h = tokio::spawn(async move {
 //         if let Ok(resp) = rx.await {
 //             log::debug!("got data from editor");
-//             if let Ok(link) = yaml::from_str(&resp) {
+//             if let Ok(link) = json::from_str(&resp) {
 //                 let (tab, index) = util::get_tab_and_index().await;
 //
 //                 log::debug!("writing new data to thing");
