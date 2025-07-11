@@ -4,40 +4,33 @@ use std::path::PathBuf;
 pub struct Args {
     /// The input file
     pub input: PathBuf,
-
-    // /// Enables logging
-    // pub log: bool,
-    //
-    // /// Path where log files should be written
-    // pub file: Option<PathBuf>,
+    /// Enables logging
+    pub log: bool,
+    /// Path where log files should be written
+    pub file: Option<PathBuf>,
 }
 
 pub fn parse() -> Args {
     let mut args = std::env::args();
     _ = args.next(); // skip the first argument (the program name)
 
-    // let mut log = false;
+    let mut log = false;
     let mut input = None;
-    // let mut file = None;
+    let mut file = None;
 
     while let Some(arg) = args.next() {
-
-        // match arg.as_str() {
-        //     "-l" | "--log" => log = true,
-        //     "-L" | "--log-file" => {
-        //         let f = args.next().unwrap();
-        //         file = Some(PathBuf::from(f));
-        //     }
-        //     _ => input = Some(PathBuf::from(arg)),
-        // }
-        input = Some(PathBuf::from(arg));
-        break;
+        match arg.as_str() {
+            "-l" | "--log" => log = true,
+            "-L" | "--log-file" => {
+                let f = args.next().unwrap();
+                file = Some(PathBuf::from(f));
+            }
+            _ => input = Some(PathBuf::from(arg)),
+        }
     }
 
     if let Some(input) = input {
-        Args { input
-            // , log, file 
-            }
+        Args { input, log, file }
     } else {
         // show help
         std::process::exit(1);

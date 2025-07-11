@@ -109,7 +109,7 @@ impl<B: tui::backend::Backend + io::Write> App<B> {
             Event::Input(k) => {
                 let msg = match &self.state.mode {
                     Mode::Normal => crate::input::normal::handle(k, &mut self.state),
-                    Mode::Delete(item) => crate::input::delete::handle(k, &item),
+                    Mode::Delete(item) => crate::input::delete::handle(k, item),
                 };
                 if let Some(msg) = msg {
                     log::info!("msg: {:?}", msg);
@@ -132,7 +132,6 @@ impl<B: tui::backend::Backend + io::Write> App<B> {
                     self.state.redraw = true;
                 }
             }
-            ,
             Msg::MoveDown(s) => {
                 self.state.selected = self.state.selected.saturating_add(s);
                 self.state.selected = self.state.selected.min(
@@ -229,8 +228,8 @@ impl<B: tui::backend::Backend + io::Write> App<B> {
 /// Edits an item
 fn edit<B: std::io::Write, T: Serialize + DeserializeOwned>(
     term: &mut B,
-    item: &mut T) -> Result<(), AppError> {
-
+    item: &mut T,
+) -> Result<(), AppError> {
     deinit(term);
 
     let mut f = tempfile::NamedTempFile::new()

@@ -27,8 +27,8 @@ pub fn handle(key: Key, stat: &mut State) -> Option<Msg> {
         Key::Up | Key::Char('k') => Msg::MoveUp(1),
         Key::Down | Key::Char('j') => Msg::MoveDown(1),
 
-        Key::End | Key::Char('g') => Msg::MoveDown(usize::MAX),
-        Key::Char('G') => Msg::MoveUp(usize::MAX),
+        Key::End | Key::Char('G') => Msg::MoveDown(usize::MAX),
+        Key::Char('g') => Msg::MoveUp(usize::MAX),
 
         Key::PageUp | Key::Ctrl('u') => Msg::MoveUp(20),
         Key::PageDown | Key::Ctrl('d') => Msg::MoveDown(20),

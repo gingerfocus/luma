@@ -12,8 +12,8 @@ build:
 
 # Formats, lints, and tests the project
 publish:
-    cargo fmt
     cargo clippy -q -- -D warnings
+    cargo fmt
     @just safety
     cargo test -q
 

@@ -1,9 +1,6 @@
 //! A Program to unite the web and filesystem
 
-#![warn(
-    unused_crate_dependencies
-    // missing_docs
-)]
+#![warn(unused_crate_dependencies)]
 
 mod app;
 mod cli;
@@ -15,6 +12,7 @@ mod state;
 use crate::prelude::*;
 
 use std::os::fd::FromRawFd;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use app::App;
@@ -72,9 +70,10 @@ fn main() -> Result<(), LumaError> {
         eprintln!("{}", info);
     }));
 
-    // args.log.then(|| init_logger(args.file));
+    args.log.then(|| init_logger(args.file));
 
-    let mut f = std::fs::OpenOptions::new().read(true).write(true).open(&args.input)
+    let mut f = std::fs::File::open(&args.input)
+        // let mut f = std::fs::OpenOptions::new().read(true).write(true).open(&args.input)
         .change_context(LumaError::Input)?;
     let luma: Luma = json::from_reader(&mut f).change_context(LumaError::Parse)?;
 
@@ -93,19 +92,22 @@ fn main() -> Result<(), LumaError> {
     app::deinit(term.backend_mut());
     res?;
 
-    // .change_context(LumaError::Panic);
+    let f = std::fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .create(true)
+        .open(&args.input)
+        .change_context(LumaError::Input)?;
 
-    io::Seek::rewind(&mut f).change_context(LumaError::Input)?;
     json::to_writer_pretty::<_, Luma>(f, &luma).change_context(LumaError::Parse)?;
 
     log::trace!("exit.");
 
     Ok(())
 
-    // HACK: at the end of the block the [`App`] is dropped. It contains a owned
-    // handle to stdout and so will close it. Returning a result from this
-    // function causes it to _print_ to stderr which is still open at that point
-    // an so the error displays correctly.
+    // HACK: at the end of the block the [`Term`] is dropped. It contains an owned handle to stdout
+    // and so will close it. Returning a result from this function causes it to _print_ to stderr
+    // which is still open at that point an so the error displays correctly.
 }
 
 fn read_event() -> Result<Option<crossterm::event::Event>, LumaError> {
@@ -117,55 +119,29 @@ fn read_event() -> Result<Option<crossterm::event::Event>, LumaError> {
     }
 }
 
-// fn init_logger(file: Option<PathBuf>) {
-//     if true {
-//         return
-//     }
-//
-//     let file = file.unwrap_or_else(|| {
-//         PathBuf::from(env::var("XDG_CACHE_HOME").unwrap_or_else(|_| {
-//             let home = env::var("HOME").expect("You don't have a $HOME???");
-//             format!("{home}/.cache")
-//         }))
-//         .join("luma.log")
-//     });
-//
-//     let Ok(file) = fs::File::create(&file) else {
-//         eprintln!("could not open file to log: {:?}", file);
-//         return;
-//     };
-//
-//     let _ = simplelog::WriteLogger::init(
-//         simplelog::LevelFilter::Trace,
-//         simplelog::Config::default(),
-//         file,
-//     );
-//
-//     log::debug!("log init");
-// }
+fn init_logger(file: Option<PathBuf>) {
+    if true {
+        return;
+    }
 
-// use pty_process as _;
-// fn a() {
-//     use std::io::Read;
-//     let mut pty = pty_process::blocking::Pty::new().unwrap();
-//
-//     let (x, y) = crossterm::terminal::size().unwrap();
-//     pty.resize(pty_process::Size::new(x, y)).unwrap();
-//
-//     let mut cmd = pty_process::blocking::Command::new("nvim");
-//     let mut child = cmd.spawn(&pty.pts().unwrap()).unwrap();
-//     loop {
-//         if child.try_wait().unwrap().is_some() {
-//             break;
-//         }
-//         let mut buf = [0u8; 256];
-//         let len = pty.read(&mut buf).unwrap();
-//         if len == 0 {
-//             break;
-//         }
-//         use std::io::Write;
-//         std::io::stdout().write_all(&buf[..len]).unwrap();
-//         // let s = std::str::from_utf8(&buf[..len]).unwrap();
-//         // log::info!("{}", s);
-//     }
-// }
+    let file = file.unwrap_or_else(|| {
+        PathBuf::from(env::var("XDG_CACHE_HOME").unwrap_or_else(|_| {
+            let home = env::var("HOME").expect("You don't have a $HOME???");
+            format!("{home}/.cache")
+        }))
+        .join("luma.log")
+    });
+
+    let Ok(file) = fs::File::create(&file) else {
+        eprintln!("could not open file to log: {:?}", file);
+        return;
+    };
+
+    let _ = simplelog::WriteLogger::init(
+        simplelog::LevelFilter::Trace,
+        simplelog::Config::default(),
+        file,
+    );
+
+    log::debug!("log init");
+}
